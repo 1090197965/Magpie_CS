@@ -25,7 +25,10 @@ public:
         if (result.reset) _count = _position = 0;
         if (!result.reset && current.timestamp100ns > 0 && _previous.timestamp100ns > 0) {
             result.sourceMs = static_cast<double>(current.timestamp100ns - _previous.timestamp100ns) / 10000.0;
-            // A skipped capture is a measured gap, not one game-frame render time.
+            // Reject known skipped submissions. Consecutive accepted frame IDs
+            // do NOT prove consecutive produced frames: WGC can drain its pool
+            // and keep only the newest. This measures accepted capture cadence,
+            // not a backpressure-free game-frame render time.
             result.captured = current.frameId == _previous.frameId + 1 &&
                 result.sourceMs >= 0.125 && result.sourceMs < 500;
         }
@@ -43,7 +46,11 @@ public:
         }
         auto sorted = _samples;
         std::sort(sorted.begin(), sorted.begin() + _count);
-        result.fedMs = _count ? sorted[_count / 2] : 0;
+        // During bootstrap use the shortest of the first two observations, so
+        // one slow startup interval does not dominate an even-sized median.
+        // From three observations onward use the rolling median. No fixed FPS
+        // cap: sustained low frame rates and later rate changes remain valid.
+        result.fedMs = _count ? sorted[_count < 3 ? 0 : _count / 2] : 0;
         _previous = current;
         _lastSubmit = nowMs;
         return result;

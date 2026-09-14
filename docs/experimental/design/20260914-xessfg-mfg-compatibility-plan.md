@@ -157,3 +157,13 @@ XeLL 负责现有低延迟和基础输入限制，容量对象负责队列容量
 另发现独立的 RTSS 环境问题：一次多轮切换在新交换链初始化中经过 RTSSHooks64 / nvapi64_impl / D3D12Core 触发控制流保护失败（0xc0000409，子码 0xa）。更换测试进程名称仍加载 RTSS 的全局配置，其 60 FPS 限制干扰多帧提交。用户退出 RTSS 后，原 Magpie.exe 名称的完整切换和组合测试通过。未修改 RTSS 用户设置，未把本轮修复宣传为已解决 RTSS 注入兼容性。
 
 证据位于 `.tools/xess-mfg-impl/sequence-fix-*.log`，最终真实链路日志和分会话统计位于 `capture-20260914-152800/`；崩溃转储分析为 `sequence-fix-crash-analysis.log`。这些是 SDK/provider 观察，不是显示事件；显示节奏、全屏、HDR、VRR、游戏遮挡/HUD 画质和长期稳定性仍保留验证缺口。
+
+## 11. RTSS 兼容性后续定位
+
+进一步读取转储确认：触发调用为 RTSS 注入的 `NvAPI_D3D_SetLatencyMarker`（API ID `0xD9984C05`），参数 frameID 为 `0x5254535300000935`，带 RTSS 签名。NVAPI 查询 D3D12 设备接口时出现内层访问异常，随后控制流保护终止进程。无效接口的具体来源尚待对照定位；不能单凭最终 CFG 错误将其归为缺少跳板注册。
+
+原名 Magpie 的 RTSS 配置 `Limit=0`，开启 Reflex 标记注入；全局 60 FPS 属于换名测试的另一问题。原名开启 RTSS 的日志中 3×曾有 360 次提交／1078 张 SDK 输出，说明不能将“3×必然失败、2×天然安全”作为结论。
+
+完整证据、按进程保留 OSD／协调 Reflex 注入与 XeLL 的方案、多帧调度加固及验收矩阵见 [XeSSFG 与 RTSS 兼容性方案](20260914-xessfg-rtss-compatibility-plan.md)。本轮仅研究和文档，没有改动运行时或部署包。
+
+慢启动问题及正式期限修复另见 [启动 pacing 调查](20260914-xessfg-startup-pacing-investigation.md)。RTSS 重建期崩溃与可恢复的启动低帧率分开处理。

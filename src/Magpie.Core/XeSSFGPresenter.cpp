@@ -85,6 +85,8 @@ struct XeSSFGPresenter::Impl {
 	double extraWaitMs = 0, xellWaitMs = 0, presentMs = 0;
 	double sourceReceivedAtMs = 0, sourceReceiveIntervalMs = 0, sourceQueueMs = 0;
 	uint64_t sdkFrames = 0, sdkSamples = 0, partialBursts = 0;
+	// Opt-in startup diagnostics; normal runs keep the existing log cadence.
+	bool startupTrace = GetEnvironmentVariableW(L"MAGPIE_XESS_STARTUP_TRACE", nullptr, 0) != 0;
 
 	HWND hwnd = NULL;
 	ID3D11Device5* device11 = nullptr;
@@ -993,13 +995,20 @@ bool XeSSFGPresenter::EndFrame(bool waitForGpu) noexcept {
 			++impl.sdkSamples;
 			impl.partialBursts += status.framesPresented != impl.multiplier;
 		}
-		if (impl.frameId % 120 == 0) {
+		const bool traceStartup = impl.startupTrace && impl.frameId <= 240;
+		if (traceStartup) {
+			Logger::Get().Info(fmt::format("XeSSFG startup: frame={} rtss={} medianNs={} unitNs={} deadlineShiftNs={} (latest worker snapshot)",
+				impl.frameId, GetModuleHandleW(L"RTSSHooks64.dll") != nullptr,
+				XeSSFGCompatibility::Pacing::diagnosticMedianNs.load(), XeSSFGCompatibility::Pacing::diagnosticUnitNs.load(),
+				XeSSFGCompatibility::Pacing::diagnosticDeadlineShiftNs.load()));
+		}
+		if (traceStartup || impl.frameId % 120 == 0) {
 			Logger::Get().Info(fmt::format(
 				"XeSSFG SDK output: requested={}x frames={} submissions={} partialBursts={} lastFrames={} lastFGResult={} (not display events)",
 				impl.multiplier, impl.sdkFrames, impl.sdkSamples, impl.partialBursts,
 				status.framesPresented, static_cast<int>(status.frameGenResult)));
 		}
-		if (impl.compatibility.Patched() && impl.frameId % 120 == 0) {
+		if (impl.compatibility.Patched() && (traceStartup || impl.frameId % 120 == 0)) {
 			const auto outputs = XeSSFGCompatibility::Pacing::ReadOutputStats();
 			Logger::Get().Info(fmt::format("XeSSFG provider submission gaps: samples={} P50={:.3f} P95={:.3f} P99={:.3f} ms; receiveIntervalMs={:.3f} frontendQueueMs={:.3f} (not display events)",
 				outputs.count, outputs.p50, outputs.p95, outputs.p99, impl.sourceReceiveIntervalMs, impl.sourceQueueMs));

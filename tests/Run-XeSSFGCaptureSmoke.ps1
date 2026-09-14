@@ -1,6 +1,10 @@
 #Requires -Version 7.0
-param([string]$RuntimeDirectory, [switch]$IsolateProcessName, [int[]]$Modes = @(2,3,4,2,5))
+param([string]$RuntimeDirectory, [switch]$IsolateProcessName, [int[]]$Modes = @(2,3,4,2,5),
+    [ValidateRange(1,900)][int]$Seconds = 12, [switch]$StartupTrace, [switch]$Fullscreen)
 $ErrorActionPreference = 'Stop'
+if ($StartupTrace -and $Modes.Count -gt 2) {
+    throw 'Startup tracing retains at most two sessions per run within the rotating log budget; split longer sequences or omit -StartupTrace.'
+}
 $repo = Split-Path $PSScriptRoot -Parent
 $workspace = Split-Path $repo -Parent
 if (!$RuntimeDirectory) { $RuntimeDirectory = Join-Path $workspace 'release/v0.6.8-local/Magpie-Experimental-x64' }
@@ -39,7 +43,7 @@ foreach ($mode in @(2,3,4,5)) {
     }}
     $profiles += @{
         name="Capture $mode"; packaged=$false; pathRule=$fixture; classNameRule="MagpieXeSSCapture$mode";
-        autoScale=2; scalingMode=$scalingModes.Count; captureMethod=0; initialWindowedScaleFactor=7;
+        autoScale=$(if ($Fullscreen) { 1 } else { 2 }); scalingMode=$scalingModes.Count; captureMethod=0; initialWindowedScaleFactor=7;
         parameterFocusSwitching=$false; enableHdrCompatibility=$false
     }
     $scalingModes += @{name="Capture $mode"; effects=$effects}
@@ -70,11 +74,17 @@ if ($IsolateProcessName) {
     $appPath = Join-Path $runtime 'MagpieXeSSCaptureApp.exe'
     Copy-Item -LiteralPath (Join-Path $runtime 'Magpie.exe') -Destination $appPath
 }
-$app = Start-Process -FilePath $appPath -ArgumentList '-t' -WorkingDirectory $runtime -WindowStyle Hidden -PassThru
+$launchEnvironment = @{}
+if ($StartupTrace) { $launchEnvironment['MAGPIE_XESS_STARTUP_TRACE'] = '1' }
+$app = Start-Process -FilePath $appPath -ArgumentList '-t' -WorkingDirectory $runtime -WindowStyle Hidden -PassThru -Environment $launchEnvironment
 Write-Output "Isolated capture runtime: $runtime"
 try {
     Start-Sleep -Seconds 3
-    & $fixture @Modes
+    $previousSeconds = $env:MAGPIE_CAPTURE_SECONDS
+    try {
+        $env:MAGPIE_CAPTURE_SECONDS = "$Seconds"
+        & $fixture @Modes
+    } finally { $env:MAGPIE_CAPTURE_SECONDS = $previousSeconds }
     if ($LASTEXITCODE) { throw 'Capture fixture failed; inspect isolated runtime logs.' }
     $rtssInjected = [bool](Get-Process -Id $app.Id -Module | Where-Object ModuleName -eq 'RTSSHooks64.dll')
 } finally {
@@ -87,7 +97,9 @@ try {
     if (!$app.WaitForExit(15000)) { throw "Test Magpie did not exit: PID $($app.Id), runtime $runtime" }
 }
 if ($app.ExitCode) { throw "Test Magpie exited with code $($app.ExitCode)" }
-$log = Get-Content -LiteralPath (Join-Path $runtime 'logs/magpie.log') -Raw
+$logFiles = @(Get-ChildItem -LiteralPath (Join-Path $runtime 'logs') -Filter 'magpie*.log' |
+    Sort-Object @{Expression={ if ($_.Name -match '^magpie\.(\d+)\.log$') { [int]$Matches[1] } else { 0 } }; Descending=$true})
+$log = ($logFiles | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
 $sessions = [regex]::Matches($log, 'XeSSFG request: [^\r\n]*requestedMultiplier=(\d)x')
 if ($sessions.Count -ne $Modes.Count) { throw 'Expected capture sessions were not all initialized' }
 $observations = @()
@@ -100,14 +112,33 @@ for ($i = 0; $i -lt $sessions.Count; ++$i) {
     if (!$sdkMatches.Count) { throw "No ${multiplier}x SDK observations" }
     foreach ($match in $sdkMatches) {
         $frames = [double]$match.Groups[1].Value; $submissions = [double]$match.Groups[2].Value
+        if ($StartupTrace -and $submissions -lt 120) { continue }
         if ($frames/$submissions -lt $multiplier*0.9) { throw "Incomplete multiplier: $($match.Value)" }
     }
     if ($Modes[$i] -eq 5 -and $sessionLog -notmatch 'DLSSNR STATUS: Feature=18 .*created=true') { throw 'DLSSNR combination did not initialize' }
     $last = $sdkMatches[$sdkMatches.Count - 1]
+    if ([int]$last.Groups[2].Value -lt 120) { throw "Fewer than 120 submissions for ${multiplier}x; startup samples alone do not validate steady output" }
+    $startup = $null
+    if ($StartupTrace) {
+        $timed = [regex]::Matches($sessionLog, '(?m)^(.{23})[^\r\n]*XeSSFG SDK output: requested=\d+x frames=\d+ submissions=(\d+) partialBursts=\d+ lastFrames=(\d+)')
+        $first = [datetime]::ParseExact($timed[0].Groups[1].Value, 'yyyy-MM-dd HH:mm:ss.fff', [cultureinfo]::InvariantCulture)
+        $startup = @{}
+        foreach ($sample in $timed) {
+            $stamp = [datetime]::ParseExact($sample.Groups[1].Value, 'yyyy-MM-dd HH:mm:ss.fff', [cultureinfo]::InvariantCulture)
+            $inputCount = [int]$sample.Groups[2].Value
+            if (!$startup.ContainsKey('firstFullMs') -and [int]$sample.Groups[3].Value -eq $multiplier) {
+                $startup.firstFullMs = ($stamp - $first).TotalMilliseconds
+            }
+            if ($inputCount -in @(120,240)) { $startup["first${inputCount}Seconds"] = ($stamp - $first).TotalSeconds }
+        }
+        $startup.firstFrameRTSS = $sessionLog -match 'XeSSFG startup: frame=1 rtss=true'
+    }
     $observations += @{mode=$Modes[$i]; multiplier=$multiplier; frames=[int]$last.Groups[1].Value;
-        submissions=[int]$last.Groups[2].Value; partialBursts=[int]$last.Groups[3].Value}
+        submissions=[int]$last.Groups[2].Value; partialBursts=[int]$last.Groups[3].Value; startup=$startup}
 }
 if ($log -match 'XeSSFG disabled|XeSSFG.*failed|compatibility.*poison') { throw 'XeSSFG runtime failure in capture log' }
-@{runtime=$runtime; rtssInjected=$rtssInjected; observations=$observations} | ConvertTo-Json -Depth 6 |
+@{runtime=$runtime; rtssInjected=$rtssInjected; observations=$observations; seconds=$Seconds;
+    startupTrace=[bool]$StartupTrace; fullscreen=[bool]$Fullscreen;
+    executableSha256=(Get-FileHash -LiteralPath $appPath).Hash} | ConvertTo-Json -Depth 6 |
     Set-Content -LiteralPath (Join-Path $output 'capture-verification.json') -Encoding utf8
 Write-Output "Actual WGC + AMD Quality capture passed for modes $($Modes -join '/'), where 5 means DLSSNR + 4x. SDK counts are not display events."

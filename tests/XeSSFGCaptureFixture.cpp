@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include "../src/Shared/CommonSharedConstants.h"
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -38,6 +39,9 @@ static void Pump() {
 
 int main(int argc, char** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    wchar_t secondsText[32]{};
+    GetEnvironmentVariableW(L"MAGPIE_CAPTURE_SECONDS", secondsText, 32);
+    const auto seconds = secondsText[0] ? std::clamp(_wtoi(secondsText), 1, 900) : 12;
     std::vector<int> modes{2, 3, 4, 2, 5};
     if (argc > 1) {
         modes.clear();
@@ -80,7 +84,7 @@ int main(int argc, char** argv) {
             DestroyWindow(window); return 1;
         }
         std::cout << "capturing mode=" << mode << std::endl;
-        const auto end = GetTickCount64() + 12000;
+        const auto end = GetTickCount64() + static_cast<ULONGLONG>(seconds) * 1000;
         while (GetTickCount64() < end) Pump();
         DestroyWindow(window);
         const auto stopDeadline = GetTickCount64() + 10000;

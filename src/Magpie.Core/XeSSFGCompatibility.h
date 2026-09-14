@@ -166,6 +166,8 @@ public:
         Reset();
         Pacing::outputPosition = Pacing::outputSize = 0;
         Pacing::outputCalls = 0; Pacing::schedulerCalls = 0; Pacing::extraWaitNs = 0;
+        Pacing::diagnosticMedianNs = 0; Pacing::diagnosticUnitNs = 0;
+        Pacing::diagnosticDeadlineShiftNs = 0;
         Pacing::g_enabled = true;
         leased = _held = _patched = true;
         _failure = "";

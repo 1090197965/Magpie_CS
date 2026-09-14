@@ -97,6 +97,28 @@ static void Timing() {
         if (frame > 1) assert(x.captured && std::abs(x.fedMs-16.6667)<0.0001);
     }
     assert(resets==1); // production capture sequence remains constant for all 120 frames
+    // Startup outlier, real low FPS, sustained rate change and pause recovery.
+    for (const int period : {16, 25, 33, 100, 250}) {
+        clock.Reset();
+        int64_t timestamp = 1000000;
+        double now = 1000;
+        clock.Submit({1,1,1,timestamp},now,0);
+        timestamp += 4000000; now += 400;
+        assert(clock.Submit({2,1,1,timestamp},now,0).fedMs == 400);
+        for (uint64_t f = 3; f <= 14; ++f) {
+            timestamp += period * 10000; now += period;
+            assert(clock.Submit({f,1,1,timestamp},now,0).fedMs == period);
+        }
+        for (uint64_t f = 15; f <= 25; ++f) {
+            timestamp += 2000000; now += 200;
+            x = clock.Submit({f,1,1,timestamp},now,0);
+        }
+        assert(x.fedMs == 200); // no permanent clamp to the earlier fast rate
+        timestamp += 10000000; now += 1000;
+        assert(clock.Submit({26,1,1,timestamp},now,0).reset);
+        timestamp += period * 10000; now += period;
+        assert(clock.Submit({27,1,1,timestamp},now,0).fedMs == period);
+    }
 }
 static void* NativeTimestamp(void*, int64_t* out, void*, void*, uint32_t, uint32_t) { *out=100000000; return out; }
 static void Deadlines() {
@@ -118,10 +140,39 @@ static void Deadlines() {
     assert(out==103000000);
     Pacing::TsDetour(nullptr,&out,nullptr,timing,2,4);
     assert(out==107000000);
+    // Delay beyond the whole burst: deadlines stay in the SDK time domain.
+    // The old QPC reanchor appended a fresh full interval after this delay.
+    Sleep(30);
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,3,4);
+    assert(out==111000000);
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,1,4);
+    assert(out==103000000); // next burst has no inherited lateness
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,3,4);
+    assert(out==111000000); // skipped index preserves the original slot
+    timing[1] = 24000000;
+    Pacing::sourcePeriodNs.store(24000000);
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,1,3);
+    assert(out==106666667);
+    Sleep(30);
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,2,3);
+    assert(out==114666667);
+    // Fallback must also leave expired slots expired, not add a full interval.
+    Pacing::g_intervalQpc = Pacing::QpcFromNs(10000000);
+    Pacing::g_periodNs = 30000000;
+    LARGE_INTEGER now{}; QueryPerformanceCounter(&now);
+    const auto expired = now.QuadPart - Pacing::QpcFromNs(100000000);
+    Pacing::g_targetQpc = expired;
+    Pacing::PaceFrame(2,3);
+    assert(Pacing::g_targetQpc == expired + Pacing::g_intervalQpc);
     Pacing::sourcePeriodNs.store(0);
     Pacing::resetEpoch.fetch_add(1);
     Pacing::EnterContext(ctx.data());
     assert(Pacing::g_nextDeadlineNs==0 && Pacing::g_lastTsIndex==0);
+    timing[1]=20000000;
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,2,4);
+    assert(out==108000000); // first observed callback can be a later slot
+    Pacing::TsDetour(nullptr,&out,nullptr,timing,3,3);
+    assert(out==100000000); // invalid slot must retain native output
     Pacing::g_enabled = false;
 }
 static void Runtime(const wchar_t* path) {

@@ -97,8 +97,6 @@ inline TimestampFn g_tsNative = nullptr;
 inline thread_local uint8_t* g_ring = nullptr;
 inline thread_local int64_t g_nextDeadlineNs = 0;
 inline thread_local int64_t g_burstStepNs = 0;
-inline thread_local int64_t deadlineAnchorQpc = 0;
-inline thread_local int64_t deadlineAnchorNs = 0;
 inline thread_local uint32_t g_lastTsIndex = 0;
 inline thread_local uint32_t g_lastTsCountPlus1 = 0;
 
@@ -118,6 +116,7 @@ inline double MsFromQpc(int64_t qpc) { return g_freq.QuadPart > 0 ? (qpc * 1000.
 inline std::atomic<uint64_t> resetEpoch{1};
 inline std::atomic<int64_t> sourcePeriodNs{0};
 inline std::atomic<uint64_t> outputCalls{0}, schedulerCalls{0}, extraWaitNs{0};
+inline std::atomic<int64_t> diagnosticMedianNs{0}, diagnosticUnitNs{0}, diagnosticDeadlineShiftNs{0};
 inline thread_local uint64_t workerEpoch = 0;
 inline thread_local void* workerContext = nullptr;
 inline thread_local int64_t workerLastQpc = 0;
@@ -138,7 +137,6 @@ inline void EnterContext(void* ctx) noexcept {
         g_burstStepNs = {};
         g_lastTsIndex = {};
         g_lastTsCountPlus1 = {};
-        deadlineAnchorQpc = deadlineAnchorNs = 0;
         workerEpoch = epoch; workerContext = ctx;
     }
     workerLastQpc = now.QuadPart;
@@ -235,7 +233,9 @@ inline void PaceFrame(uint64_t index, uint64_t count)
 
     if (g_targetQpc > latest)
         g_targetQpc = latest;
-    if (g_targetQpc < now.QuadPart) g_targetQpc = now.QuadPart + g_intervalQpc;
+    // An expired slot has already been consumed by GPU/Present work. Do not
+    // add another interval, or feed that extra wait into the next input period.
+    // At most three slots can catch up; index 1 reanchors the next burst.
     WaitUntil(g_targetQpc);
 
     LARGE_INTEGER end;
@@ -355,26 +355,32 @@ inline bool SchedForwarder(void* ctx, void* burst, uint8_t gate, void* timing, u
     return g_schedNative != nullptr && g_schedNative(ctx, burst, gate, timing, index);
 }
 // Restore the median step removed by the native minimum clamp, then use
-// one anchor per burst. QPC is used only for elapsed time, never as SDK epoch.
+// one fixed schedule per burst, entirely in the SDK timestamp domain. Expired
+// slots are left to the native scheduler; do not map a future deadline to QPC
+// "now" or roll each expired slot forward. Only this burst's <=3 slots can catch
+// up, and the next burst takes a new native anchor (no carried timing debt).
 inline void* TsDetour(void* a1, int64_t* out, void* lookup, void* timing, uint32_t index, uint32_t countPlus1) noexcept
 {
     CallbackScope callback;
     void* const result = g_tsNative(a1, out, lookup, timing, index, countPlus1);
     if (!g_enabled) return result;
-    if (out == nullptr || timing == nullptr || index == 0 || index > 3 || countPlus1 < 3 || countPlus1 > 4)
+    if (out == nullptr || timing == nullptr || index == 0 || index > 3 || countPlus1 < 3 || countPlus1 > 4 || index >= countPlus1)
         return result;
 
     const int64_t median = *reinterpret_cast<const int64_t*>(reinterpret_cast<const uint8_t*>(timing) + 8);
     const int64_t inputPeriod = sourcePeriodNs.load(std::memory_order_relaxed);
-    // The provider ring also measures our own waits. Prefer the capture or
-    // attributed submit estimate so increasing the multiplier cannot inflate
-    // its own pacing period through that ring.
+    // Prefer the accepted-capture / attributed-submit estimate over the provider
+    // ring. Both may include backpressure: neither proves the game's production
+    // cadence, so it is essential not to extend expired slots below.
     const int64_t unit = (inputPeriod > 0 ? inputPeriod : median) / static_cast<int64_t>(countPlus1);
 
     if (unit <= 0)
         return result;
 
-    const bool fresh = index == 1 || index <= g_lastTsIndex || countPlus1 != g_lastTsCountPlus1;
+    const bool fresh = g_lastTsIndex == 0 || index == 1 || index <= g_lastTsIndex || countPlus1 != g_lastTsCountPlus1;
+    const int64_t originalDeadline = *out;
+    diagnosticMedianNs.store(median, std::memory_order_relaxed);
+    diagnosticUnitNs.store(unit, std::memory_order_relaxed);
 
     if (fresh)
     {
@@ -402,20 +408,14 @@ inline void* TsDetour(void* a1, int64_t* out, void* lookup, void* timing, uint32
     }
     else
     {
-        g_nextDeadlineNs += g_burstStepNs;
+        g_nextDeadlineNs += static_cast<int64_t>(index - g_lastTsIndex) * g_burstStepNs;
     }
 
     g_lastTsIndex = index;
     g_lastTsCountPlus1 = countPlus1;
 
-    LARGE_INTEGER wall{}; QueryPerformanceCounter(&wall);
-    if (fresh) { deadlineAnchorQpc = wall.QuadPart; deadlineAnchorNs = g_nextDeadlineNs; }
-    else {
-        const int64_t elapsed = NsFromQpc(wall.QuadPart - deadlineAnchorQpc);
-        if (elapsed > g_nextDeadlineNs - deadlineAnchorNs)
-            g_nextDeadlineNs = deadlineAnchorNs + elapsed + g_burstStepNs;
-    }
     *out = g_nextDeadlineNs;
+    diagnosticDeadlineShiftNs.store(*out - originalDeadline, std::memory_order_relaxed);
 
     return result;
 }
