@@ -140,7 +140,7 @@ int main() {
 	};
 	assert(DLSSNRPassCount(get) == 1);
 	assert(DLSSNRAntiFlickerMode(get) == 0);
-	for (float invalid : {-1.f, 3.f, 1.5f, std::numeric_limits<float>::quiet_NaN()}) {
+	for (float invalid : {-1.f, 5.f, 1.5f, std::numeric_limits<float>::quiet_NaN()}) {
 		option.parameters["antiFlicker"] = invalid;
 		assert(DLSSNRAntiFlickerMode(get) == 0);
 	}
@@ -218,13 +218,14 @@ int main() {
 	{ DLSSNRMultiPass chain; assert(!chain.Initialize(resources, core, &input, &output, option, false)); }
 	assert(DLSSNRFilter::liveInstances == 0);
 	resources.failTextureAt = -1;
-	for (int mode : {1, 2}) {
+	for (int mode : {1, 2, 3, 4}) {
 		option.parameters["antiFlicker"] = static_cast<float>(mode);
+		assert(DLSSNRAntiFlickerMode(get) == mode);
 		for (int count : {1, 3}) {
 			option.parameters["multiPass"] = static_cast<float>(count);
 			DLSSNRMultiPass chain;
 			assert(chain.Initialize(resources, core, &input, &output, option, false));
-			assert(chain.GetFrameGuidanceRequirements().HasMotion() == (mode == 2));
+			assert(chain.GetFrameGuidanceRequirements().HasMotion() == (mode >= 2));
 			assert(chain.GetParameterApplyMode("antiFlicker") == EffectParameterApplyMode::RestartRequired);
 			assert(chain.GetParameterRestartReason("antiFlicker") == EffectParameterRestartReason::FrameGuidance);
 			assert((DLSSNRTemporal::lastBase == &input) == (count == 1));

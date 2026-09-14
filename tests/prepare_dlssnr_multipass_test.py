@@ -25,7 +25,7 @@ assert len(blocks) == 33
 anti = blocks["antiFlicker"]
 assert list(blocks).index("antiFlicker") == list(blocks).index("multiPass") + 1
 assert "//!GROUP DLSSNR · Pass 1" in anti and "//!DEFAULT 0" in anti
-assert re.findall(r"//!OPTION (\d+) (.*)", anti) == [("0", "None"), ("1", "A - Static EMA"), ("2", "B - Flow EMA")]
+assert re.findall(r"//!OPTION (\d+) (.*)", anti) == [("0", "None"), ("1", "A - Static EMA"), ("2", "B - Flow EMA"), ("3", "F - Persistence"), ("4", "G - Temporal Upsampling")]
 count = blocks["multiPass"]
 assert list(blocks).index("multiPass") == list(blocks).index("uiCorrection") + 1
 assert re.search(r"//!LABEL (.*)", count)[1] == "Multi Pass"
@@ -55,6 +55,8 @@ for lang in ("en-US", "zh-Hans", "zh-Hant"):
     root = ET.fromstring(read(f"src/Magpie/Resources.language-{lang}.resw"))
     entries = {item.attrib["name"]: item.findtext("value") for item in root.findall("data")}
     assert entries["EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label"] == "Multi Pass"
+    for i in range(5):
+        assert entries[f"EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_{i}"]
     for i in (1, 2, 3):
         assert entries[f"EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_{i}"] == f"DLSSNR · Pass {i}"
 print("Multi Pass shader defaults/ranges, 33 unique keys, dynamic-column viewport and localization contracts passed.")

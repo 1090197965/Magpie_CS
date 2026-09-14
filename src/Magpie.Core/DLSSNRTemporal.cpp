@@ -18,6 +18,9 @@ struct DLSSNRTemporal::Impl {
 	uint32_t next = 0;
 	DLSSNRTemporalState state;
 	winrt::com_ptr<ID3D11ComputeShader> shader;
+	winrt::com_ptr<ID3D11ComputeShader> reduceShader;
+	std::array<winrt::com_ptr<ID3D11ShaderResourceView>, 2> low;
+	std::array<winrt::com_ptr<ID3D11UnorderedAccessView>, 2> lowOut;
 	winrt::com_ptr<ID3D11Buffer> constants;
 	winrt::com_ptr<ID3D11SamplerState> sampler;
 	std::array<winrt::com_ptr<ID3D11ShaderResourceView>, 3> inputs;
@@ -56,6 +59,11 @@ bool DLSSNRTemporal::Initialize(DeviceResources& resources, ID3D11Texture2D* inp
 	winrt::com_ptr<ID3DBlob> blob;
 	if (!DirectXHelper::CompileComputeShader(DLSSNR_TEMPORAL_SHADER, "main", blob.put(), "DLSSNRTemporal")) return false;
 	if (FAILED(impl->device->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, impl->shader.put()))) return false;
+	if (mode == 4) {
+		blob = nullptr;
+		if (!DirectXHelper::CompileComputeShader(DLSSNR_TEMPORAL_REDUCE_SHADER, "main", blob.put(), "DLSSNRTemporalReduce")) return false;
+		if (FAILED(impl->device->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, impl->reduceShader.put()))) return false;
+	}
 	D3D11_BUFFER_DESC buffer{};
 	buffer.ByteWidth = 48; buffer.Usage = D3D11_USAGE_DEFAULT; buffer.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	if (FAILED(impl->device->CreateBuffer(&buffer, nullptr, impl->constants.put()))) return false;
@@ -88,8 +96,18 @@ bool DLSSNRTemporal::Initialize(DeviceResources& resources, ID3D11Texture2D* inp
 			impl->dc->ClearUnorderedAccessViewFloat(uav.get(), zero);
 		}
 	}
+	if (mode == 4) {
+		desc.Width = (desc.Width+1)/2; desc.Height = (desc.Height+1)/2;
+		for (size_t i = 0; i < 2; ++i) {
+			winrt::com_ptr<ID3D11Texture2D> texture;
+			if (FAILED(impl->device->CreateTexture2D(&desc, nullptr, texture.put())) ||
+				FAILED(impl->device->CreateShaderResourceView(texture.get(), nullptr, impl->low[i].put())) ||
+				FAILED(impl->device->CreateUnorderedAccessView(texture.get(), nullptr, impl->lowOut[i].put()))) return false;
+		}
+	}
 	_impl = std::move(impl);
-	Logger::Get().Info(fmt::format("DLSSNR anti-flicker: route={} history={}x{} tau=80ms", mode, desc.Width, desc.Height));
+	Logger::Get().Info(fmt::format("DLSSNR anti-flicker: route={} history={}x{} tau=80ms lowObservations={}x{}",
+		mode, _impl->extent.width, _impl->extent.height, mode == 4 ? desc.Width : 0, mode == 4 ? desc.Height : 0));
 	return true;
 }
 
@@ -98,7 +116,7 @@ bool DLSSNRTemporal::Draw(const NativeEffectDrawContext& context) noexcept {
 	auto& impl = *_impl;
 	const auto& zero = context.zeroFrameGuidance.motion.metadata;
 	const auto& guidance = context.frameGuidance;
-	bool motion = impl.mode == 2 &&
+	bool motion = impl.mode >= 2 &&
 		guidance.motion.IsValid(DXGI_FORMAT_R16G16_FLOAT, context.frameId, impl.extent) &&
 		!guidance.motion.metadata.isZero &&
 		guidance.motionDirection == FrameGuidanceMotionDirection::CurrentToPrevious &&
@@ -127,25 +145,38 @@ bool DLSSNRTemporal::Draw(const NativeEffectDrawContext& context) noexcept {
 	const FrameGuidanceRegion region = metadataValid ? meta.validRegion : FrameGuidanceRegion::Full(impl.extent);
 	struct Constants {
 		uint32_t width, height, motion, hdr;
-		float weight; uint32_t padding[3];
+		float weight; uint32_t route, lowWidth, lowHeight;
 		uint32_t left, top, right, bottom;
 	} constants{impl.extent.width, impl.extent.height, motion ? 1u : 0u, impl.hdr ? 1u : 0u,
-		weight, {}, region.x, region.y, region.x+region.width, region.y+region.height};
+		weight, static_cast<uint32_t>(impl.mode), (impl.extent.width+1)/2, (impl.extent.height+1)/2,
+		region.x, region.y, region.x+region.width, region.y+region.height};
 	static_assert(sizeof(constants) == 48);
 	impl.dc->UpdateSubresource(impl.constants.get(), 0, nullptr, &constants, 0, 0);
 	const auto next = impl.next, previous = next ^ 1u;
 	ID3D11ShaderResourceView* srvs[]{impl.inputs[0].get(), impl.inputs[1].get(), impl.inputs[2].get(),
-		impl.history[previous].get(), impl.guide[previous].get(), motion ? impl.motion.get() : impl.zeroMotion.get()};
+		impl.history[previous].get(), impl.guide[previous].get(), motion ? impl.motion.get() : impl.zeroMotion.get(),
+		impl.mode == 4 ? impl.low[0].get() : impl.history[previous].get(),
+		impl.mode == 4 ? impl.low[1].get() : impl.guide[previous].get()};
 	ID3D11UnorderedAccessView* uavs[]{impl.output.get(), impl.historyOut[next].get(), impl.guideOut[next].get()};
 	ID3D11Buffer* cb = impl.constants.get(); ID3D11SamplerState* sampler = impl.sampler.get();
+	impl.dc->CSSetConstantBuffers(0, 1, &cb);
+	if (impl.mode == 4) {
+		ID3D11UnorderedAccessView* lowUavs[]{impl.lowOut[0].get(), impl.lowOut[1].get()};
+		impl.dc->CSSetShader(impl.reduceShader.get(), nullptr, 0);
+		impl.dc->CSSetShaderResources(0, 3, srvs);
+		impl.dc->CSSetUnorderedAccessViews(0, 2, lowUavs, nullptr);
+		impl.dc->Dispatch((constants.lowWidth+7)/8, (constants.lowHeight+7)/8, 1);
+		ID3D11UnorderedAccessView* nullLow[2]{};
+		impl.dc->CSSetUnorderedAccessViews(0, 2, nullLow, nullptr);
+	}
 	impl.dc->CSSetShader(impl.shader.get(), nullptr, 0);
 	impl.dc->CSSetShaderResources(0, ARRAYSIZE(srvs), srvs);
 	impl.dc->CSSetUnorderedAccessViews(0, ARRAYSIZE(uavs), uavs, nullptr);
 	impl.dc->CSSetConstantBuffers(0, 1, &cb); impl.dc->CSSetSamplers(0, 1, &sampler);
 	impl.dc->Dispatch((impl.extent.width+7)/8, (impl.extent.height+7)/8, 1);
-	ID3D11ShaderResourceView* nullSrvs[6]{}; ID3D11UnorderedAccessView* nullUavs[3]{};
+	ID3D11ShaderResourceView* nullSrvs[8]{}; ID3D11UnorderedAccessView* nullUavs[3]{};
 	cb = nullptr; sampler = nullptr;
-	impl.dc->CSSetShaderResources(0, 6, nullSrvs); impl.dc->CSSetUnorderedAccessViews(0, 3, nullUavs, nullptr);
+	impl.dc->CSSetShaderResources(0, 8, nullSrvs); impl.dc->CSSetUnorderedAccessViews(0, 3, nullUavs, nullptr);
 	impl.dc->CSSetConstantBuffers(0, 1, &cb); impl.dc->CSSetSamplers(0, 1, &sampler);
 	impl.dc->CSSetShader(nullptr, nullptr, 0);
 	impl.state.Commit(context.frameId, context.inputRevision, meta.resourceGeneration, meta.timestamp100ns);

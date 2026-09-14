@@ -79,7 +79,8 @@ public:
 		FrameGuidanceRequirements result;
 		for (const auto& filter : _filters) result.Merge(filter->GetFrameGuidanceRequirements());
 		const auto it = _option.parameters.find("antiFlicker");
-		if (it != _option.parameters.end() && it->second == 2 && !result.HasMotion())
+		if (it != _option.parameters.end() && it->second >= 2 && it->second <= 4 &&
+			it->second == std::floor(it->second) && !result.HasMotion())
 			result.Add(MotionVectorRequest::Amd(AmdOpticalFlowMode::Quality));
 		return result;
 	}

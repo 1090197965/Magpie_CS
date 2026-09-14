@@ -175,6 +175,8 @@ int multiPass;
 //!OPTION 0 None
 //!OPTION 1 A - Static EMA
 //!OPTION 2 B - Flow EMA
+//!OPTION 3 F - Persistence
+//!OPTION 4 G - Temporal Upsampling
 int antiFlicker;
 
 //!PARAMETER
