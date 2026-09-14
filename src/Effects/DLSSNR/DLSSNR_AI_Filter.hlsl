@@ -173,10 +173,10 @@ int multiPass;
 //!LABEL Anti-flicker
 //!DEFAULT 0
 //!OPTION 0 None
-//!OPTION 1 A - Static EMA
-//!OPTION 2 B - Flow EMA
-//!OPTION 3 F - Persistence
-//!OPTION 4 G - Temporal Upsampling
+//!OPTION 1 Static Accumulation
+//!OPTION 2 Optical Flow Accumulation
+//!OPTION 3 Optical Flow Accumulation+
+//!OPTION 4 Low-frequency Temporal Reconstruction
 int antiFlicker;
 
 //!PARAMETER

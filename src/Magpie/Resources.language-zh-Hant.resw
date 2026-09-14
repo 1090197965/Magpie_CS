@@ -1607,8 +1607,8 @@
   <data name="Overlay_Parameters_Preview" xml:space="preserve"><value>預覽</value></data>
   <data name="Overlay_Parameters_InputHint" xml:space="preserve"><value>Ctrl+點擊滑桿輸入數值。Esc：編輯→預覽→關閉；點擊預覽面板繼續編輯。面板開關快捷鍵：</value></data>
   <data name="Overlay_Parameters_FocusFailed" xml:space="preserve"><value>請點擊遊戲視窗恢復控制</value></data>
-  <data name="Profile_General_ParameterFocusSwitching.Header" xml:space="preserve"><value>參數調整焦點切換</value></data>
-  <data name="Profile_General_ParameterFocusSwitching.Description" xml:space="preserve"><value>參數即時調整時啟用焦點切換，但在部分視窗上執行時可能不穩定。</value></data>
+  <data name="Profile_Advanced_ParameterFocusSwitching.Header" xml:space="preserve"><value>參數調整焦點切換</value></data>
+  <data name="Profile_Advanced_ParameterFocusSwitching.Description" xml:space="preserve"><value>參數即時調整時啟用焦點切換，但在部分視窗上執行時可能不穩定。</value></data>
   <data name="Home_Advanced_StopEffectsOnTaskSwitch.Header" xml:space="preserve"><value>切換視窗時自動停用生效效果組</value></data>
   <data name="Home_Advanced_StopEffectsOnTaskSwitch.Description" xml:space="preserve"><value>如果在使用 DLSSNR 時切換視窗，會讓你感覺像吃了毒蘑菇，你可以嘗試啟用它。</value></data>
   <data name="EffectPicker_CustomSummary" xml:space="preserve"><value>自訂效果器；請參考作者說明。</value></data>
@@ -1641,8 +1641,8 @@
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_3" xml:space="preserve"><value>DLSSNR · Pass 3</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Label" xml:space="preserve"><value>抗閃爍</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_0" xml:space="preserve"><value>無</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_1" xml:space="preserve"><value>A · 靜態累積</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>B · 光流累積</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_3" xml:space="preserve"><value>F · 持續性遲滯</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_4" xml:space="preserve"><value>G · 時域升採樣</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_1" xml:space="preserve"><value>靜態累積</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>光流累積</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_3" xml:space="preserve"><value>光流累積+</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_4" xml:space="preserve"><value>低頻時域重建</value></data>
 </root>

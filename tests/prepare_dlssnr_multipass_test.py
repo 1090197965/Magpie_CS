@@ -25,7 +25,7 @@ assert len(blocks) == 33
 anti = blocks["antiFlicker"]
 assert list(blocks).index("antiFlicker") == list(blocks).index("multiPass") + 1
 assert "//!GROUP DLSSNR · Pass 1" in anti and "//!DEFAULT 0" in anti
-assert re.findall(r"//!OPTION (\d+) (.*)", anti) == [("0", "None"), ("1", "A - Static EMA"), ("2", "B - Flow EMA"), ("3", "F - Persistence"), ("4", "G - Temporal Upsampling")]
+assert re.findall(r"//!OPTION (\d+) (.*)", anti) == [("0", "None"), ("1", "Static Accumulation"), ("2", "Optical Flow Accumulation"), ("3", "Optical Flow Accumulation+"), ("4", "Low-frequency Temporal Reconstruction")]
 count = blocks["multiPass"]
 assert list(blocks).index("multiPass") == list(blocks).index("uiCorrection") + 1
 assert re.search(r"//!LABEL (.*)", count)[1] == "Multi Pass"

@@ -1640,8 +1640,8 @@
   <data name="Overlay_Parameters_Preview" xml:space="preserve"><value>Preview</value></data>
   <data name="Overlay_Parameters_InputHint" xml:space="preserve"><value>Ctrl+click a slider to enter its value. Esc: Edit → Preview → Closed. Click the preview panel to edit. Open / close shortcut:</value></data>
   <data name="Overlay_Parameters_FocusFailed" xml:space="preserve"><value>Click the game window to restore control</value></data>
-  <data name="Profile_General_ParameterFocusSwitching.Header" xml:space="preserve"><value>Switch focus for parameter adjustment</value></data>
-  <data name="Profile_General_ParameterFocusSwitching.Description" xml:space="preserve"><value>Enable focus switching during live parameter adjustment. This may be unstable with some windows.</value></data>
+  <data name="Profile_Advanced_ParameterFocusSwitching.Header" xml:space="preserve"><value>Switch focus for parameter adjustment</value></data>
+  <data name="Profile_Advanced_ParameterFocusSwitching.Description" xml:space="preserve"><value>Enable focus switching during live parameter adjustment. This may be unstable with some windows.</value></data>
   <data name="Home_Advanced_StopEffectsOnTaskSwitch.Header" xml:space="preserve"><value>Disable active effects when switching tasks</value></data>
   <data name="Home_Advanced_StopEffectsOnTaskSwitch.Description" xml:space="preserve"><value>If switching tasks while using DLSSNR makes you feel like you have eaten poisonous mushrooms, try enabling this.</value></data>
   <data name="EffectPicker_CustomSummary" xml:space="preserve"><value>Custom effect; see the author's documentation.</value></data>
@@ -1674,8 +1674,8 @@
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_3" xml:space="preserve"><value>DLSSNR · Pass 3</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Label" xml:space="preserve"><value>Anti-flicker</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_0" xml:space="preserve"><value>None</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_1" xml:space="preserve"><value>A - Static EMA</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>B - Flow EMA</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_3" xml:space="preserve"><value>F - Persistence</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_4" xml:space="preserve"><value>G - Temporal Upsampling</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_1" xml:space="preserve"><value>Static Accumulation</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>Optical Flow Accumulation</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_3" xml:space="preserve"><value>Optical Flow Accumulation+</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_4" xml:space="preserve"><value>Low-frequency Temporal Reconstruction</value></data>
 </root>
