@@ -223,7 +223,7 @@ void EffectParametersViewModel::UpdateLayoutWidth(double availableWidth) {
 
 void EffectParametersViewModel::_RefreshLayoutWidth() {
 	constexpr double DEFAULT_COLUMN_WIDTH = 260.0;
-	constexpr double MIN_COLUMN_WIDTH = 120.0;
+	const double MIN_COLUMN_WIDTH = _effectInfo->name == L"DLSSNR\\DLSSNR_AI_Filter" ? 240.0 : 120.0;
 	constexpr double COLUMN_SPACING = 24.0;
 
 	const size_t visibleGroupCount = std::max<size_t>(1, std::ranges::count_if(
@@ -244,7 +244,8 @@ void EffectParametersViewModel::_RefreshLayoutWidth() {
 		hasVisibleGroup = hasVisibleGroup || group->IsVisible();
 	}
 
-	const double contentWidth = columnWidth * visibleGroupCount + totalSpacing;
+	const double contentWidth = std::min(columnWidth * visibleGroupCount + totalSpacing,
+		std::max(0.0, _availableLayoutWidth));
 	if (std::abs(_contentWidth - contentWidth) >= 0.01) {
 		_contentWidth = contentWidth;
 		RaisePropertyChanged(L"ContentWidth");

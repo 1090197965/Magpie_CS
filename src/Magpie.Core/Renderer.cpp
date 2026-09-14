@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "DlssnrAutoHdr.h"
+#include "DLSSNRParameters.h"
 #include "RTXVideoParameters.h"
 #include "FrameTrace.h"
 #include "FramePacingOptions.h"
@@ -2363,6 +2364,14 @@ ID3D11Texture2D* Renderer::_ResizeEffects() noexcept {
 		if (_nativeEffectBackends[i] && !_nativeEffectBackends[i]->Resize(
 			_backendResources, _effectDrawers[i].GetTexture(0), _effectDrawers[i].GetOutputTexture())) {
 			if (effects[i].name == "DLSSNR\\DLSSNR_AI_Filter") {
+				const int count = DLSSNRPassCount([&](std::string_view name, float fallback) {
+					const auto it = effects[i].parameters.find(std::string(name));
+					return it == effects[i].parameters.end() ? fallback : it->second;
+				});
+				if (count > 1) {
+					Logger::Get().Error("Resize DLSSNR Multi Pass failed; stopping the complete chain");
+					return nullptr;
+				}
 				const char status[] =
 					"DLSSNR STATUS: Feature=18 created=false stage=resize "
 					"fallback=pass-through";
@@ -3410,6 +3419,18 @@ void Renderer::_BackendRender(
 			if (!nativeDrawSucceeded && component == HdrComponentKind::RtxVideoHdr) {
 				_FailColorPipeline(_runtimeEffectOptions[i].name, ScalingError::RtxHdrUnavailable);
 				return;
+			}
+			if (!nativeDrawSucceeded && _runtimeEffectOptions[i].name == "DLSSNR\\DLSSNR_AI_Filter") {
+				const int count = DLSSNRPassCount([&](std::string_view name, float fallback) {
+					const auto& values = _runtimeEffectOptions[i].parameters;
+					const auto it = values.find(std::string(name));
+					return it == values.end() ? fallback : it->second;
+				});
+				if (count > 1) {
+					_FailColorPipeline(_runtimeEffectOptions[i].name + "\nMulti Pass evaluation failed",
+						NgxRuntimeGuard::IsFaulted() ? ScalingError::NgxRestartRequired : ScalingError::DlssNrUnavailable);
+					return;
+				}
 			}
 			if (!nativeDrawSucceeded) {
 				const HdrEffectBoundaryContext& boundary = effectDrawer.GetHdrBoundary();

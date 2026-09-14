@@ -1635,4 +1635,9 @@
   <data name="EffectPicker_SearchAllCategories" xml:space="preserve"><value>搜尋全部分類</value></data>
   <data name="EffectPicker_NoMatches" xml:space="preserve"><value>沒有相符的效果器</value></data>
   <data name="EffectPicker_NoMatchesDescription" xml:space="preserve"><value>嘗試縮短關鍵字、搜尋演算法家族名稱，或選擇「全部」查看已安裝效果器。</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label" xml:space="preserve"><value>Multi Pass
+(多層DLSSNR串聯)</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_1" xml:space="preserve"><value>DLSSNR · Pass 1</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_2" xml:space="preserve"><value>DLSSNR · Pass 2</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_3" xml:space="preserve"><value>DLSSNR · Pass 3</value></data>
 </root>

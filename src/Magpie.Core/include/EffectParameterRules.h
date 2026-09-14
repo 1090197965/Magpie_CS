@@ -1,6 +1,7 @@
 #pragma once
 #include <string_view>
 #include "FramePacingOptions.h"
+#include "DLSSNRParameters.h"
 
 namespace Magpie {
 
@@ -24,6 +25,8 @@ inline bool HasOpticalFlowSelection(std::string_view effect) noexcept {
 template<class GetValue>
 bool IsEffectParameterVisible(std::string_view effect, std::string_view parameter,
 	GetValue&& getValue) noexcept {
+	if (effect == "DLSSNR\\DLSSNR_AI_Filter" &&
+		DLSSNRParameterPass(parameter) > DLSSNRPassCount(getValue)) return false;
 	if (HasOpticalFlowSelection(effect)) {
 		const float method = getValue("opticalFlowMethod", 0.0f);
 		if (parameter == "amdOpticalFlowMode") return method == 1.0f;
