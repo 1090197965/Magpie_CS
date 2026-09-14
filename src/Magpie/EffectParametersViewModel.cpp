@@ -188,7 +188,8 @@ EffectParametersViewModel::EffectParametersViewModel(uint32_t scalingModeIdx, ui
 	groups.reserve(groupBuilders.size());
 	_groupImpls.reserve(groupBuilders.size());
 	for (GroupBuilder& builder : groupBuilders) {
-		if (!isDlssnr) {
+		if (!isDlssnr && ClassifyFrameGenerationEffect(std::wstring_view(_effectInfo->name)) ==
+			FrameGenerationEffectKind::None) {
 			std::stable_partition(
 				builder.params.begin(), builder.params.end(),
 				[](const IInspectable& item) {

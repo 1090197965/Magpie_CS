@@ -15,6 +15,14 @@
 int multiplier;
 
 //!PARAMETER
+//!LABEL Duplicate Frame Filtering
+//!DEFAULT 1
+//!MIN 0
+//!MAX 1
+//!STEP 1
+int duplicateFrameFiltering;
+
+//!PARAMETER
 //!LABEL Optical Flow Method
 //!DEFAULT 1
 //!OPTION 0 None

@@ -1640,4 +1640,6 @@
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>光流累積</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_3" xml:space="preserve"><value>光流累積+</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_4" xml:space="preserve"><value>低頻時域重建</value></data>
+  <data name="EffectParam_DLSSFG_DLSS_FrameGeneration_duplicateFrameFiltering_Label" xml:space="preserve"><value>重複影格過濾</value></data>
+  <data name="EffectParam_XeSSFG_XeSS_FrameGeneration_duplicateFrameFiltering_Label" xml:space="preserve"><value>重複影格過濾</value></data>
 </root>

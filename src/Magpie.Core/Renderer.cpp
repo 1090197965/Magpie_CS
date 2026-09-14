@@ -1666,13 +1666,16 @@ bool Renderer::_InitFrameSource() noexcept {
 
 	Logger::Get().Info(StrHelper::Concat("当前捕获模式: ", _frameSource->Name()));
 
-	const bool forceDuplicateFrameDetection = std::ranges::any_of(
-		ScalingWindow::Get().Options().effects,
-		[](const EffectOption& effect) { return IsFrameGenerationEffect(effect.name); });
-	_frameSource->ForceDuplicateFrameDetection(forceDuplicateFrameDetection);
-	if (forceDuplicateFrameDetection) {
-		Logger::Get().Info(
-			"Frame Generation: exact duplicate-frame filtering forced for captured input");
+	for (const EffectOption& effect : ScalingWindow::Get().Options().effects) {
+		if (!IsFrameGenerationEffect(effect.name)) continue;
+		// Preserve the previous FG behavior for configurations without this option.
+		const bool enabled = ReadIntegralEffectParameter(
+			effect, "duplicateFrameFiltering", 0, 1, 1) != 0;
+		_frameSource->DuplicateFrameDetectionOverride(enabled);
+		Logger::Get().Info(fmt::format(
+			"Frame Generation: exact duplicate-frame filtering {} for captured input",
+			enabled ? "enabled" : "disabled"));
+		break;
 	}
 
 	Logger::DiagnosticCapture captureDiagnostic;
