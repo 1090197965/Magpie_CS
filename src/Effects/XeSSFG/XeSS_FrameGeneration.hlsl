@@ -1,13 +1,14 @@
-// Experimental XeSS Multi-Frame Generation marker effect. MFG requests are
-// accepted according to the requested multiplier and the XeSS-FG SDK support.
+// Experimental XeSS Frame Generation marker effect. The renderer keeps this
+// pass in the regular effect chain while XeSSFGPresenter owns interpolation
+// and presentation through Intel's D3D12 proxy swap chain.
 
 //!MAGPIE EFFECT
 //!VERSION 4
-//!SORT_NAME XeSS Multi-Frame Generation x2-x4
+//!SORT_NAME XeSSFG
 
 //!PARAMETER
 //!LABEL Frame Multiplier
-//!DEFAULT 3
+//!DEFAULT 2
 //!MIN 2
 //!MAX 4
 //!STEP 1
@@ -15,9 +16,10 @@ int multiplier;
 
 //!PARAMETER
 //!LABEL Optical Flow Method
-//!DEFAULT 0
+//!DEFAULT 1
 //!OPTION 0 None
 //!OPTION 1 AMDOF
+//!OPTION 2 NVOF
 int opticalFlowMethod;
 
 //!PARAMETER
@@ -26,6 +28,16 @@ int opticalFlowMethod;
 //!OPTION 0 Performance
 //!OPTION 1 Quality
 int amdOpticalFlowMode;
+
+//!PARAMETER
+//!LABEL OF Quality
+//!DEFAULT 2
+//!OPTION 1 Performance
+//!OPTION 2 Balanced (Recommended)
+//!OPTION 3 Quality
+//!OPTION 4 High Quality (High Cost)
+//!OPTION 5 Highest Quality (Very High Cost)
+int nvidiaOpticalFlowQuality;
 
 //!TEXTURE
 Texture2D INPUT;

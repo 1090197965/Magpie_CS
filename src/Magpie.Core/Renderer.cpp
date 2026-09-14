@@ -376,7 +376,7 @@ ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOption
 		if (kind != FrameGenerationEffectKind::None) {
 			_configuredFrameGenerationMultiplier = kind == FrameGenerationEffectKind::XeSSX2 ? 2u :
 				static_cast<uint32_t>(ReadIntegralEffectParameter(effect, "multiplier", 2, 4,
-					kind == FrameGenerationEffectKind::XeSSMultiFrame ? 3 : 2));
+					2));
 		}
 		if (kind != FrameGenerationEffectKind::XeSSX2 &&
 			kind != FrameGenerationEffectKind::XeSSMultiFrame) {
@@ -388,17 +388,16 @@ ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOption
 		_xessFrameGenerationKind = kind;
 		xessFrameGenerationMultiplier = *xessVariant == XeSSFGVariant::X2 ? 2u :
 			static_cast<uint32_t>(ReadIntegralEffectParameter(
-				effect, "multiplier", 2, 4, 3));
+				effect, "multiplier", 2, 4, 2));
 		const int method = ReadIntegralEffectParameter(
 			effect, "opticalFlowMethod", 0,
-			*xessVariant == XeSSFGVariant::X2 ? 2 : 1, 0);
+			2, 1);
 		if (method == static_cast<int>(OpticalFlowMethod::Amd)) {
 			const int quality = ReadIntegralEffectParameter(
 				effect, "amdOpticalFlowMode", 0, 1, 1);
 			_xessMotionRequest = MotionVectorRequest::Amd(
 				static_cast<AmdOpticalFlowMode>(quality));
-		} else if (*xessVariant == XeSSFGVariant::X2 &&
-			method == static_cast<int>(OpticalFlowMethod::Nvidia)) {
+		} else if (method == static_cast<int>(OpticalFlowMethod::Nvidia)) {
 			const int quality = ReadIntegralEffectParameter(
 				effect, "nvidiaOpticalFlowQuality", 1, NVIDIA_OPTICAL_FLOW_MAX_QUALITY, 2);
 			_xessMotionRequest = MotionVectorRequest::Nvidia(
@@ -431,10 +430,10 @@ ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOption
 			adapterDesc.DeviceId, static_cast<uint32_t>(_xessMotionRequest.method),
 			static_cast<uint32_t>(_xessMotionRequest.quality)));
 		if (xessFrameGenerationMultiplier > 2 &&
-			adapterDesc.VendorId != 0x8086) {
+			_xessMotionRequest.method == OpticalFlowMethod::Nvidia) {
 			Logger::Get().Error(
-				"XeSS Multi-Frame Generation x3/x4 requires an Intel adapter");
-			return ScalingError::XeSSMfgRequiresIntel;
+				"XeSSFG 3x/4x currently supports None or AMD optical flow");
+			return ScalingError::XeSSMfgOpticalFlowUnsupported;
 		}
 
 		auto xessPresenter = std::make_unique<XeSSFGPresenter>(
@@ -985,6 +984,10 @@ bool Renderer::_FrontendRender(
 		_destRect.right - rendererRect.left,
 		_destRect.bottom - rendererRect.top
 	};
+	const auto& sourceMetadata = stableBaseOnly ? _frontendPresentedFrameMetadata : _frontendFrameMetadata;
+	_presenter->SetSourceTiming(sourceMetadata.frameId,
+		sourceMetadata.captureSequence, sourceMetadata.resourceGeneration,
+		sourceMetadata.timestamp100ns);
 	_presenter->SetFrameGuidance(
 		_frontendMotionValid ? _frontendMotionTexture.get() : nullptr,
 		_frontendMotionFrameId,

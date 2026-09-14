@@ -16,8 +16,7 @@ inline bool HasOpticalFlowSelection(std::string_view effect) noexcept {
 		effect == "DLSSFG\\DLSS_FrameGeneration" ||
 		effect == "Diagnostics\\FrameGuidance_Motion" ||
 		effect == "Diagnostics\\FrameGuidance_Confidence" ||
-		effect == "XeSSFG\\XeSS_FrameGeneration_x2_ZeroMV" ||
-		effect == "XeSSFG\\XeSS_MultiFrameGeneration_ZeroMV";
+		effect == "XeSSFG\\XeSS_FrameGeneration";
 }
 
 // Restrict built-in UI rules to their owning effects. Custom effects may use
@@ -28,7 +27,7 @@ bool IsEffectParameterVisible(std::string_view effect, std::string_view paramete
 	if (effect == "DLSSNR\\DLSSNR_AI_Filter" &&
 		DLSSNRParameterPass(parameter) > DLSSNRPassCount(getValue)) return false;
 	if (HasOpticalFlowSelection(effect)) {
-		const float method = getValue("opticalFlowMethod", 0.0f);
+		const float method = getValue("opticalFlowMethod", effect == "XeSSFG\\XeSS_FrameGeneration" ? 1.0f : 0.0f);
 		if (parameter == "amdOpticalFlowMode") return method == 1.0f;
 		if (parameter == "nvidiaOpticalFlowQuality") return method == 2.0f;
 	}

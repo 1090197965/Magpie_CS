@@ -80,6 +80,8 @@ Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/testing/SCALING
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/testing/EFFECT-PICKER.md') -Destination (Join-Path $buildOutput 'EFFECT-PICKER.md')
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/testing/PARAMETER-INPUT.md') -Destination (Join-Path $buildOutput 'PARAMETER-INPUT.md')
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/effects/DLSSNR-MULTIPASS.md') -Destination (Join-Path $buildOutput 'DLSSNR-MULTIPASS.md')
+Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/effects/XESSFG.md') -Destination (Join-Path $buildOutput 'XESSFG.md')
+Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/experimental/design/XESSFG-COMPATIBILITY-NOTICE.md') -Destination (Join-Path $buildOutput 'XESSFG-COMPATIBILITY-NOTICE.md')
 if ($BuildOnly) {
     [ordered]@{ status = 'built_for_validation'; commit = $commit; sourceDirty = [bool]$dirty.Count } |
         ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
@@ -90,7 +92,7 @@ if ($BuildOnly) {
 # effect assets. User config/logs/custom effect files are never package inputs.
 $files = @(Get-ChildItem -LiteralPath $buildOutput -File | Where-Object {
     $_.Extension -in @('.exe', '.dll', '.pri', '.pdb', '.map') -or
-    $_.Name -in @('LICENSE-Magpie.txt', 'LOCAL-NOTES.md', 'EFFECT-PICKER.md', 'DLSSNR-MULTIPASS.md', 'PARAMETER-INPUT.md',
+    $_.Name -in @('LICENSE-Magpie.txt', 'LOCAL-NOTES.md', 'EFFECT-PICKER.md', 'DLSSNR-MULTIPASS.md', 'PARAMETER-INPUT.md', 'XESSFG.md', 'XESSFG-COMPATIBILITY-NOTICE.md',
         'AMD-FSR-SDK-THIRD-PARTY.md', 'AMD-FSR2-DX11-LICENSE.txt', 'INTEL-XESS-LICENSE.txt',
         'INTEL-XESS-THIRD-PARTY.txt', 'NVIDIA-DLSS-LICENSE.txt', 'NVIDIA-NVAPI-LICENSE.txt', 'NVIDIA-RTX-VIDEO-LICENSE.pdf')
 })
@@ -131,6 +133,18 @@ foreach ($family in @('Denoise', 'VSR')) {
             if ((Get-FileHash -LiteralPath $old).Hash -ne (Get-FileHash -LiteralPath $backup).Hash) { throw 'Retired effect backup verification failed.' }
             Remove-Item -LiteralPath $old
         }
+    }
+}
+foreach ($name in @('XeSS_FrameGeneration_x2_ZeroMV', 'XeSS_MultiFrameGeneration_ZeroMV')) {
+    $old = [IO.Path]::GetFullPath((Join-Path $destination "effects/XeSSFG/$name.hlsl"))
+    $backup = [IO.Path]::GetFullPath((Join-Path $retiredRoot "$name.hlsl"))
+    if (!$old.StartsWith($allowedRuntime, [StringComparison]::OrdinalIgnoreCase) -or
+        !$backup.StartsWith($allowedRetired, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unexpected retired XeSSFG path.' }
+    if (Test-Path -LiteralPath $old) {
+        New-Item -ItemType Directory -Path $retiredRoot -Force | Out-Null
+        Copy-Item -LiteralPath $old -Destination $backup
+        if ((Get-FileHash -LiteralPath $old).Hash -ne (Get-FileHash -LiteralPath $backup).Hash) { throw 'Retired XeSSFG backup verification failed.' }
+        Remove-Item -LiteralPath $old
     }
 }
 # No directory-wide deletion or mirroring: retain local config, logs and diagnostics.

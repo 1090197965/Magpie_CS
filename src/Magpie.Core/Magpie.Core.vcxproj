@@ -109,6 +109,11 @@
     <ClInclude Include="StepTimer.h" />
     <ClInclude Include="AdaptivePresenter.h" />
     <ClInclude Include="XeSSFGPresenter.h" />
+    <ClInclude Include="XeSSFGCompatibility.h" />
+    <ClInclude Include="XeSSFGPatchTransaction.h" />
+    <ClInclude Include="XeSSFGPacing.h" />
+    <ClInclude Include="XeSSFGTiming.h" />
+    <ClInclude Include="include\XeSSFGParameters.h" />
     <ClInclude Include="TextureHelper.h" />
     <ClInclude Include="YasHelper.h" />
     <ClInclude Include="DLSSSRUpscaler.h" />
