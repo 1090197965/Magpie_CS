@@ -98,15 +98,6 @@ int nvidiaOpticalFlowQuality;
 
 //!PARAMETER
 //!GROUP DLSSNR · Pass 1
-//!LABEL Multi Pass\n(Serial DLSSNR passes)
-//!DEFAULT 1
-//!OPTION 1 1
-//!OPTION 2 2
-//!OPTION 3 3
-int multiPass;
-
-//!PARAMETER
-//!GROUP DLSSNR · Pass 1
 //!LABEL NR Style\n(0 Default, 1 Natural, 2 Cinematic)
 //!DEFAULT 0
 //!MIN 0
@@ -167,6 +158,15 @@ int useAutoMask;
 //!MAX 1
 //!STEP 1
 int uiCorrection;
+
+//!PARAMETER
+//!GROUP DLSSNR · Pass 1
+//!LABEL Multi Pass
+//!DEFAULT 1
+//!OPTION 1 1
+//!OPTION 2 2
+//!OPTION 3 3
+int multiPass;
 
 //!PARAMETER
 //!GROUP DLSSNR · Pass 2

@@ -1668,8 +1668,7 @@
   <data name="EffectPicker_SearchAllCategories" xml:space="preserve"><value>Searching all categories</value></data>
   <data name="EffectPicker_NoMatches" xml:space="preserve"><value>No matching effects</value></data>
   <data name="EffectPicker_NoMatchesDescription" xml:space="preserve"><value>Try a shorter keyword, search for an algorithm family, or choose “All” to browse installed effects.</value></data>
-  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label" xml:space="preserve"><value>Multi Pass
-(Serial DLSSNR passes)</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label" xml:space="preserve"><value>Multi Pass</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_1" xml:space="preserve"><value>DLSSNR · Pass 1</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_2" xml:space="preserve"><value>DLSSNR · Pass 2</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_3" xml:space="preserve"><value>DLSSNR · Pass 3</value></data>

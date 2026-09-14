@@ -23,6 +23,8 @@ for block in shader.split("//!PARAMETER\n")[1:]:
     blocks[match[1]] = block[:match.end()]
 assert len(blocks) == 32
 count = blocks["multiPass"]
+assert list(blocks).index("multiPass") == list(blocks).index("uiCorrection") + 1
+assert re.search(r"//!LABEL (.*)", count)[1] == "Multi Pass"
 assert "//!GROUP DLSSNR · Pass 1" in count and "//!DEFAULT 1" in count
 assert re.findall(r"//!OPTION (\d+) (\d+)", count) == [("1", "1"), ("2", "2"), ("3", "3")]
 names = ("style", "intensity", "localToneStrength", "localStructureStrength",
@@ -48,7 +50,7 @@ assert scroll.attrib["HorizontalScrollMode"] == "Enabled"
 for lang in ("en-US", "zh-Hans", "zh-Hant"):
     root = ET.fromstring(read(f"src/Magpie/Resources.language-{lang}.resw"))
     entries = {item.attrib["name"]: item.findtext("value") for item in root.findall("data")}
-    assert "Multi Pass" in entries["EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label"]
+    assert entries["EffectParam_DLSSNR_DLSSNR_AI_Filter_multiPass_Label"] == "Multi Pass"
     for i in (1, 2, 3):
         assert entries[f"EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_{i}"] == f"DLSSNR · Pass {i}"
 print("Multi Pass shader defaults/ranges, 32 unique keys, dynamic-column viewport and localization contracts passed.")
