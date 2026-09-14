@@ -6,6 +6,8 @@
 
 namespace Magpie {
 struct XeSSFGSourceSample {
+    // sequence identifies a capture session, not an individual frame. It stays
+    // constant until capture is interrupted; frameId advances within a session.
     uint64_t frameId = 0, sequence = 0, generation = 0;
     int64_t timestamp100ns = 0;
 };
@@ -16,7 +18,7 @@ public:
         Estimate result;
         result.submitMs = _lastSubmit > 0 ? nowMs - _lastSubmit : 0;
         result.reset = !_previous.frameId || current.generation != _previous.generation ||
-            current.sequence <= _previous.sequence || current.frameId <= _previous.frameId ||
+            current.sequence != _previous.sequence || current.frameId <= _previous.frameId ||
             result.submitMs >= 500 || result.submitMs < 0 ||
             (current.timestamp100ns > 0 && _previous.timestamp100ns > 0 &&
                 current.timestamp100ns <= _previous.timestamp100ns);
@@ -24,7 +26,7 @@ public:
         if (!result.reset && current.timestamp100ns > 0 && _previous.timestamp100ns > 0) {
             result.sourceMs = static_cast<double>(current.timestamp100ns - _previous.timestamp100ns) / 10000.0;
             // A skipped capture is a measured gap, not one game-frame render time.
-            result.captured = current.sequence == _previous.sequence + 1 &&
+            result.captured = current.frameId == _previous.frameId + 1 &&
                 result.sourceMs >= 0.125 && result.sourceMs < 500;
         }
         // Only our measured extra waits inside the previous synchronous Present

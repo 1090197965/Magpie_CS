@@ -52,7 +52,7 @@ int main() {
 	}
 	assert(RTXVideoFamily(L"custom\\RTXVideo_VSR_High") == -1);
 	assert(RTXVideoFamily(L"RTXVideo\\RTXVideo_VSR_High_Custom") == -1);
-	assert(EffectHelper::GetDisplayName(L"XeSSFG\\XeSS_FrameGeneration") == L"XeSSFG");
+	assert(EffectHelper::GetDisplayName(L"XeSSFG\\XeSS_FrameGeneration") == L"XeSS_FrameGeneration");
 	std::vector<EffectPickerEntry> entries;
 	for (const auto& [id, name] : std::vector<std::pair<std::wstring, std::wstring>>{
 		{L"old/16", L"CuNNy-16"}, {L"old/2", L"CuNNy-2"}, {L"v2/4", L"CuNNy2-4"},

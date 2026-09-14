@@ -993,13 +993,20 @@ bool XeSSFGPresenter::EndFrame(bool waitForGpu) noexcept {
 			++impl.sdkSamples;
 			impl.partialBursts += status.framesPresented != impl.multiplier;
 		}
+		if (impl.frameId % 120 == 0) {
+			Logger::Get().Info(fmt::format(
+				"XeSSFG SDK output: requested={}x frames={} submissions={} partialBursts={} lastFrames={} lastFGResult={} (not display events)",
+				impl.multiplier, impl.sdkFrames, impl.sdkSamples, impl.partialBursts,
+				status.framesPresented, static_cast<int>(status.frameGenResult)));
+		}
 		if (impl.compatibility.Patched() && impl.frameId % 120 == 0) {
 			const auto outputs = XeSSFGCompatibility::Pacing::ReadOutputStats();
 			Logger::Get().Info(fmt::format("XeSSFG provider submission gaps: samples={} P50={:.3f} P95={:.3f} P99={:.3f} ms; receiveIntervalMs={:.3f} frontendQueueMs={:.3f} (not display events)",
 				outputs.count, outputs.p50, outputs.p95, outputs.p99, impl.sourceReceiveIntervalMs, impl.sourceQueueMs));
 			Logger::Get().Info(fmt::format(
-				"XeSSFG experimental: captureSeq={} sourceMs={:.3f} submitMs={:.3f} fedEstimateMs={:.3f} captureEstimate={} XeLLms={:.3f} PresentMs={:.3f} extraWaitMs={:.3f} SDKframes={}/{} partialBursts={} providerCalls={} schedulerCalls={} (not display events)",
-				impl.sourceSample.sequence, impl.timingEstimate.sourceMs, impl.timingEstimate.submitMs,
+				"XeSSFG experimental: sourceFrame={} captureSeq={} generation={} timingReset={} sourceMs={:.3f} submitMs={:.3f} fedEstimateMs={:.3f} captureEstimate={} XeLLms={:.3f} PresentMs={:.3f} extraWaitMs={:.3f} SDKframes={}/{} partialBursts={} providerCalls={} schedulerCalls={} (not display events)",
+				impl.sourceSample.frameId, impl.sourceSample.sequence, impl.sourceSample.generation,
+				impl.timingEstimate.reset, impl.timingEstimate.sourceMs, impl.timingEstimate.submitMs,
 				impl.timingEstimate.fedMs, impl.timingEstimate.captured, impl.xellWaitMs, impl.presentMs,
 				impl.extraWaitMs, impl.sdkFrames, impl.sdkSamples, impl.partialBursts,
 				XeSSFGCompatibility::Pacing::outputCalls.load(), XeSSFGCompatibility::Pacing::schedulerCalls.load()));

@@ -3135,7 +3135,7 @@
     },
     {
       "id": "XeSSFG\\XeSS_FrameGeneration",
-      "name": "XeSSFG",
+      "name": "XeSS_FrameGeneration",
       "category": "frame",
       "subcategory": "Frame generation",
       "purposes": [

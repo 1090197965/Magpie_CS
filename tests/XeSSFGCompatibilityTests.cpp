@@ -74,17 +74,29 @@ static void Transactions() {
 static void Timing() {
     XeSSFGTiming clock;
     assert(clock.Submit({1,1,1,100000},100,0).reset);
-    auto x=clock.Submit({2,2,1,300000},160,40);
+    auto x=clock.Submit({2,1,1,300000},160,40);
     assert(x.captured && x.sourceMs==20 && x.fedMs==20); // independent capture ignores Present wait
-    x=clock.Submit({3,4,1,700000},220,40);
-    assert(!x.captured && x.fedMs==20); // skipped capture uses attributed submit fallback
-    assert(clock.Submit({4,5,2,900000},240,0).reset);
-    assert(clock.Submit({5,6,2,800000},260,0).reset); // time goes backwards
-    assert(clock.Submit({6,7,2,1000000},1000,0).reset);
+    x=clock.Submit({4,1,1,700000},220,40);
+    assert(!x.reset && !x.captured && x.sourceMs==40 && x.fedMs==20); // skipped frame, same session
+    assert(clock.Submit({5,2,1,900000},240,0).reset); // capture restarted
+    x=clock.Submit({6,2,1,1100000},260,0);
+    assert(!x.reset && x.captured && x.fedMs==20); // recover on the next frame
+    assert(clock.Submit({7,2,2,1300000},280,0).reset); // resource recreated
+    assert(clock.Submit({8,2,2,1200000},300,0).reset); // time goes backwards
+    assert(clock.Submit({9,2,2,1400000},1000,0).reset); // long pause
     clock.Reset();
     assert(clock.Submit({1,1,1,0},100,0).reset);
-    assert(clock.Submit({2,2,1,0},150,30).fedMs==20);
-    assert(clock.Submit({2,2,1,0},170,0).reset); // repeated source identity
+    assert(clock.Submit({2,1,1,0},150,30).fedMs==20);
+    assert(clock.Submit({2,1,1,0},170,0).reset); // repeated source identity
+    clock.Reset();
+    unsigned resets = 0;
+    for (uint64_t frame = 1; frame <= 120; ++frame) {
+        x = clock.Submit({frame,1,1,1000000 + static_cast<int64_t>(frame)*166667},
+            1000 + static_cast<double>(frame)*16.6667, 0);
+        resets += x.reset;
+        if (frame > 1) assert(x.captured && std::abs(x.fedMs-16.6667)<0.0001);
+    }
+    assert(resets==1); // production capture sequence remains constant for all 120 frames
 }
 static void* NativeTimestamp(void*, int64_t* out, void*, void*, uint32_t, uint32_t) { *out=100000000; return out; }
 static void Deadlines() {

@@ -7,6 +7,8 @@
 #include <cassert>
 #include <iostream>
 #include <filesystem>
+#include <chrono>
+#include "../src/Magpie.Core/XeSSFGTiming.h"
 #include "../src/Magpie.Core/XeSSFGCompatibility.h"
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -146,8 +148,10 @@ int wmain(int argc,wchar_t** argv) {
             auto rtv=rtvs->GetCPUDescriptorHandleForHeapStart();rtv.ptr+=stride*i;
             device->CreateRenderTargetView(backBuffers[i].Get(),nullptr,rtv);
         }
-        uint64_t successfulFrames=0,fullBursts=0;
-        for(uint32_t frame=1;frame<=40;++frame) {
+        uint64_t successfulFrames=0,fullBursts=0,measuredSubmissions=0,timingResets=0;
+        Magpie::XeSSFGTiming timing;
+        double previousExtraWaitMs=0;
+        for(uint32_t frame=1;frame<=60;++frame) {
             MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)) {TranslateMessage(&msg);DispatchMessageW(&msg);}
             xellSleep(xell,frame);
             xellAddMarkerData(xell,frame,XELL_INPUT_SAMPLE);
@@ -180,24 +184,42 @@ int wmain(int argc,wchar_t** argv) {
             for(int i=0;i<16;i+=5) {constants.viewMatrix[i]=1;constants.projectionMatrix[i]=1;}
             constants.motionVectorScaleX=constants.motionVectorScaleY=1;
             constants.frameRenderTime=1000.0f/60;constants.resetHistory=frame==1;
-            // Synthetic independently timed source, matching the estimate
-            // supplied by Magpie's actual consumed capture metadata.
-            if(multiplier>2) Pacing::sourcePeriodNs.store(16666667);
+            if(multiplier>2) {
+                // Exercise the production timing path with the real metadata
+                // contract: session stays constant, frame ID/timestamp advance.
+                // Also simulate a capture restart and a resource generation change.
+                const Magpie::XeSSFGSourceSample source{frame,frame>20?2u:1u,frame>40?2u:1u,
+                    1000000 + static_cast<int64_t>(frame)*166667};
+                const auto estimate=timing.Submit(source,
+                    std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(),
+                    previousExtraWaitMs);
+                timingResets+=estimate.reset;
+                constants.frameRenderTime=static_cast<float>(estimate.fedMs);
+                constants.resetHistory=estimate.reset;
+                if(estimate.reset) lease.Reset();
+                Pacing::sourcePeriodNs.store(static_cast<int64_t>(estimate.fedMs*1000000));
+            }
             assert(xefgSwapChainTagFrameConstants(context,frame,&constants)>=0);
             assert(xefgSwapChainSetPresentId(context,frame)>=0);
             xellAddMarkerData(xell,frame,XELL_RENDERSUBMIT_END);
             xellAddMarkerData(xell,frame,XELL_PRESENT_START);
+            const auto extraBefore=Pacing::extraWaitNs.load();
             assert(SUCCEEDED(swap->Present(0,0)));
+            previousExtraWaitMs=static_cast<double>(Pacing::extraWaitNs.load()-extraBefore)/1000000;
             xellAddMarkerData(xell,frame,XELL_PRESENT_END);
             wait();
             xefg_swapchain_present_status_t status{};
             result=xefgSwapChainGetLastPresentStatus(context,&status);
             if(result<0 || status.frameGenResult<0) std::cout<<"frame="<<frame<<" status="<<int(result)<<" FG="<<int(status.frameGenResult)<<std::endl;
             assert(result>=0 && status.frameGenResult>=0);
-            if(frame>5) {successfulFrames+=status.framesPresented;fullBursts+=status.framesPresented==multiplier;}
+            if((frame-1)%20>=5) {
+                ++measuredSubmissions;successfulFrames+=status.framesPresented;fullBursts+=status.framesPresented==multiplier;
+            }
         }
-        std::cout<<"post-warmup SDK frames="<<successfulFrames<<"/35 fullBursts="<<fullBursts<<std::endl;
-        assert(fullBursts>25);
+        std::cout<<"post-warmup SDK frames="<<successfulFrames<<"/"<<measuredSubmissions
+            <<" fullBursts="<<fullBursts<<" timingResets="<<timingResets<<std::endl;
+        assert(fullBursts==measuredSubmissions && successfulFrames==measuredSubmissions*multiplier);
+        if(multiplier>2) assert(timingResets==3);
         if(multiplier>2) {
             const auto stats=Pacing::ReadOutputStats();
             std::cout<<"providerCalls="<<Pacing::outputCalls.load()<<" schedulerCalls="<<Pacing::schedulerCalls.load()
@@ -217,5 +239,5 @@ int wmain(int argc,wchar_t** argv) {
         assert(lease.Release(true));
     }
     DestroyWindow(window);
-    std::cout<<"Native 2x / compatibility 3x / 4x SDK initialization and same-process teardown passed; no display or image-quality validation."<<std::endl;
+    std::cout<<"Native 2x / compatibility 3x / 4x full bursts, production timing, history recovery and same-process teardown passed; no display or image-quality validation."<<std::endl;
 }

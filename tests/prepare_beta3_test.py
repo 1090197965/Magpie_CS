@@ -85,8 +85,8 @@ int main() {
  }
  auto defaults=ParseDLSSNRSettings({},false);
  assert(defaults.intensity==1 && defaults.localToneStrength==1 && defaults.localStructureStrength==1);
- assert(GetEffectDisplayName({"XeSSFG\\XeSS_FrameGeneration",""})=="XeSSFG");
- assert(Magpie::EffectHelper::GetDisplayName(L"XeSSFG\\XeSS_FrameGeneration")==L"XeSSFG");
+ assert(GetEffectDisplayName({"XeSSFG\\XeSS_FrameGeneration",""})=="XeSS_FrameGeneration");
+ assert(Magpie::EffectHelper::GetDisplayName(L"XeSSFG\\XeSS_FrameGeneration")==L"XeSS_FrameGeneration");
  assert(GetEffectDisplayName({"Custom\\XeSS_ZeroMV","Custom label"})=="Custom label");
  assert(GetEffectDisplayName({"Custom\\XeSS_ZeroMV",""})=="XeSS_ZeroMV");
  std::cout<<"Beta3: NR 0-2 parse/init/import, invalid inputs, metadata/live routing, XeSS display aliases and localized About links passed.\n";

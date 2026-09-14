@@ -100,7 +100,7 @@ foreach ($family in @('Denoise', 'VSR')) {
 $effects = @($effects | Where-Object { $_.id -ne 'XeSSFG\XeSS_MultiFrameGeneration_ZeroMV' })
 $xess = $effects | Where-Object { $_.id -eq 'XeSSFG\XeSS_FrameGeneration_x2_ZeroMV' }
 $xess.id = 'XeSSFG\XeSS_FrameGeneration'
-$xess.name = 'XeSSFG'
+$xess.name = 'XeSS_FrameGeneration'
 $xess.summary = '在捕获的真实帧之间生成帧，可选 2×～4×。'
 $xess.details = '默认 2×、AMD 光流、质量。旧 x2/MFG 配置自动合并到 XeSSFG，保留光流选择。' + "`n`n" +
     '2×使用原生路径；非 Intel 显卡上的 3×/4×自动启用多帧兼容，需要随附的匹配运行库。兼容路径仍处于实验验证阶段。' + "`n`n" +

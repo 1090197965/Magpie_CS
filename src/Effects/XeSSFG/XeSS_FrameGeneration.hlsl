@@ -4,7 +4,7 @@
 
 //!MAGPIE EFFECT
 //!VERSION 4
-//!SORT_NAME XeSSFG
+//!SORT_NAME XeSS_FrameGeneration
 
 //!PARAMETER
 //!LABEL Frame Multiplier

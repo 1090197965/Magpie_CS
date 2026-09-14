@@ -56,13 +56,14 @@ payload['RELEASE-NOTES.md'] = f'''# Magpie Experimental 0.6.8-local
 
 Source commit: `{commit}`
 
-- One XeSSFG effect, defaulting to 2× / AMD optical flow / Quality.
+- One XeSS_FrameGeneration effect, defaulting to 2× / AMD optical flow / Quality.
+- Fix non-Intel 3×/4× resetting interpolation history every frame: capture session IDs remain constant during normal capture. Use session changes for resets and frame IDs for skipped submissions.
 - Legacy x2/MFG effects migrate to the unified effect at 2× while preserving optical-flow settings. Existing unified settings remain unchanged.
 - Non-Intel 3×/4× automatically enables verified runtime compatibility and frame pacing; no extra user toggle. NVIDIA optical flow remains available at 2×.
 - Compatibility uses the original bundled DLL with verified in-memory changes, restoring it after context destruction. Unknown runtime builds fail explicitly.
 - The four DLSSNR anti-flicker routes and the profile focus option in Advanced remain available.
 
-See XESSFG.md for verified GPU scope and remaining capture/display/quality checks, and XESSFG-COMPATIBILITY-NOTICE.md for source attribution. The RTX 5070 Ti synthetic SDR/zero-motion smoke test returned complete 2×/3×/4× SDK counts and successfully restored native 2× in the same process. Provider submission statistics are not display events. Real-game optical-flow, HDR, VRR and image-quality validation remains open.
+See XESSFG.md for validation details and XESSFG-COMPATIBILITY-NOTICE.md for source attribution. Production timing tests and the real Magpie WGC + AMD Quality capture chain passed on RTX 5070 Ti with RTSS closed, including 2×/3×/4×/2× switching and DLSSNR + 4×. RTSS injection caused a separate control-flow protection crash during one repeated-start test; keep RTSS closed while validating this fix. Provider submission statistics are not display events. Real-game, fullscreen, HDR, VRR and image-quality validation remains open.
 
 This archive contains the verified deployed runtime, bundled effects, documentation and licenses. Local configurations, caches, logs, debug symbols and linker artifacts are excluded.
 '''.encode('utf-8')

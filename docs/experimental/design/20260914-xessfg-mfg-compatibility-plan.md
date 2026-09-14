@@ -143,3 +143,17 @@ XeLL 负责现有低延迟和基础输入限制，容量对象负责队列容量
 自动检查包括：`Run-XeSSFGCompatibilityTests.ps1`（旧 x2/MFG 的所有光流／质量组合、缺失／非法值、新建默认、重复条目、幂等；八个写入故障位置及回滚失败；时间倒退／换代／暂停／重复／漏帧；deadline 修正与防计时反馈；匹配 DLL 在独立进程中的反复安装／恢复）；`Run-ConfigMigrationTests.ps1`（真实配置保存与恢复机制、不可变备份和失败重试）；`Run-EffectPickerR1Tests.ps1`（157 项目录、真实 XAML 选择项及布局）；`Run-Beta3Tests.ps1`（显示名称和原参数迁移）。最终构建、文件及 ZIP 校验记录保存于工作区 `.tools/xess-mfg-impl/` 与 `release/v0.6.8-local/`。
 
 本轮未获取 ETW/PresentMon 的最终显示事件，也没有完成实际 Magpie 捕获链下的 AMD/NVIDIA 光流、HDR、VRR、各输入帧率／波动、长期运行及游戏画质矩阵。合成测试有显式 GPU 同步，不能用其吞吐代表用户实际捕获性能。当前按可试用的实验版本交付；5×～8×仍留待后续。
+
+## 10. 2026-09-14 捕获序号修复与真实链路验证
+
+用户报告 2×正常、3×/4×不工作。14:57 的日志中兼容补丁、能力查询和初始化成功，但 3×为 720 次提交/720 帧，4×为 480 次提交/480 帧，输入估计恒为零。`FrameSourceBase::CaptureSequence` 仅在捕获中断时变化；`XeSSFGTiming` 错误使用 `sequence <= previous.sequence` 判重，并用 `sequence + 1` 判连续帧，导致每帧向 SDK 设置 resetHistory。原 GPU 合成测试固定 frameRenderTime 且仅首帧重置，未覆盖正式计时器；原单测也错误模拟了逐帧递增的会话序号。
+
+修正后按会话变化判重置，按 frameId 连续性选择捕获间隔或归因提交间隔。保留资源换代、时间倒退、重复源帧和长暂停保护。新增 120 个同会话连续帧只重置一次的回归，并使 GPU 合成测试使用正式计时器，模拟捕获重启和资源换代。每轮 45 个计数样本均为完整倍率：90/135/180 帧，且可恢复原生 2×。注意 frameId 是 Magpie 接收的捕获帧身份，不能据此断言 WGC 上游从未丢帧。
+
+显示名统一为 `XeSS_FrameGeneration`，与 `DLSS_FrameGeneration` 对齐；更新效果选择器目录、前端名称和覆盖层名称，保留内部 ID、光流配置及效果组名称。新增统一 SDK 输出计数日志，并在兼容日志中打印源帧、会话、资源代次和计时重置状态。
+
+真实链路测试使用 `Run-XeSSFGCaptureSmoke.ps1` 和自动退出的动画窗口，运行独立的便携配置，不读写用户配置。RTX 5070 Ti、SDR、窗口模式、WGC＋AMD 质量光流，关闭 RTSS 后完成 2→3→4→2→DLSSNR＋4×：累计 SDK 帧数/提交数为 951/480、1066/360、1425/360、957/480、1413/360；包含启动及捕获中断历史重建产生的单帧。4×连续两个 120 次提交区间均输出 480 帧。DLSSNR 组合使用 50% 输入分辨率、单次 Multi Pass、低频时域重建。自动化验收按每个会话分别检查，不让另一段 4×的统计替代 DLSSNR＋4×场景。
+
+另发现独立的 RTSS 环境问题：一次多轮切换在新交换链初始化中经过 RTSSHooks64 / nvapi64_impl / D3D12Core 触发控制流保护失败（0xc0000409，子码 0xa）。更换测试进程名称仍加载 RTSS 的全局配置，其 60 FPS 限制干扰多帧提交。用户退出 RTSS 后，原 Magpie.exe 名称的完整切换和组合测试通过。未修改 RTSS 用户设置，未把本轮修复宣传为已解决 RTSS 注入兼容性。
+
+证据位于 `.tools/xess-mfg-impl/sequence-fix-*.log`，最终真实链路日志和分会话统计位于 `capture-20260914-152800/`；崩溃转储分析为 `sequence-fix-crash-analysis.log`。这些是 SDK/provider 观察，不是显示事件；显示节奏、全屏、HDR、VRR、游戏遮挡/HUD 画质和长期稳定性仍保留验证缺口。
