@@ -132,6 +132,7 @@ struct XeSSFGPresenter::Impl {
 	uint32_t multiplier = 2;
 	uint32_t limiterIntervalUs = 0;
 	uint32_t consecutiveFailures = 0;
+	uint64_t sdkMotionSamples = 0;
 	bool frameGenerationEnabled = false;
 	bool externalMotionEnabled = false;
 	bool externalMotionValid = false;
@@ -993,6 +994,7 @@ bool XeSSFGPresenter::EndFrame(bool waitForGpu) noexcept {
 		if (statusResult == XEFG_SWAPCHAIN_RESULT_SUCCESS) {
 			impl.sdkFrames += status.framesPresented;
 			++impl.sdkSamples;
+			impl.sdkMotionSamples += impl.externalMotionValid && !impl.externalMotionReset;
 			impl.partialBursts += status.framesPresented != impl.multiplier;
 		}
 		const bool traceStartup = impl.startupTrace && impl.frameId <= 240;
@@ -1004,9 +1006,9 @@ bool XeSSFGPresenter::EndFrame(bool waitForGpu) noexcept {
 		}
 		if (traceStartup || impl.frameId % 120 == 0) {
 			Logger::Get().Info(fmt::format(
-				"XeSSFG SDK output: requested={}x frames={} submissions={} partialBursts={} lastFrames={} lastFGResult={} (not display events)",
+				"XeSSFG SDK output: requested={}x frames={} submissions={} partialBursts={} lastFrames={} lastFGResult={} motionFrames={} (not display events)",
 				impl.multiplier, impl.sdkFrames, impl.sdkSamples, impl.partialBursts,
-				status.framesPresented, static_cast<int>(status.frameGenResult)));
+				status.framesPresented, static_cast<int>(status.frameGenResult), impl.sdkMotionSamples));
 		}
 		if (impl.compatibility.Patched() && (traceStartup || impl.frameId % 120 == 0)) {
 			const auto outputs = XeSSFGCompatibility::Pacing::ReadOutputStats();

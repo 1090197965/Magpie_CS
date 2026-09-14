@@ -1,6 +1,8 @@
 #Requires -Version 7.0
 param([string]$RuntimeDirectory, [switch]$IsolateProcessName, [int[]]$Modes = @(2,3,4,2,5),
-    [ValidateRange(1,900)][int]$Seconds = 12, [switch]$StartupTrace, [switch]$Fullscreen)
+    [ValidateRange(1,900)][int]$Seconds = 12, [switch]$StartupTrace, [switch]$Fullscreen,
+    [ValidateSet('AMD','NVIDIA','None')][string]$OpticalFlow = 'AMD',
+    [ValidateRange(1,5)][int]$NvidiaQuality = 2)
 $ErrorActionPreference = 'Stop'
 if ($StartupTrace -and $Modes.Count -gt 2) {
     throw 'Startup tracing retains at most two sessions per run within the rotating log budget; split longer sequences or omit -StartupTrace.'
@@ -30,6 +32,7 @@ $fixture = Join-Path $output 'XeSSFGCaptureFixture.exe'
 if ($LASTEXITCODE) { throw 'Capture fixture compilation failed' }
 $scalingModes = @()
 $profiles = @(@{scalingMode=-1})
+$flowMethod = @{None=0; AMD=1; NVIDIA=2}[$OpticalFlow]
 foreach ($mode in @(2,3,4,5)) {
     $multiplier = if ($mode -eq 5) { 4 } else { $mode }
     $effects = @(@{name='FrameRate_Filter'; scalingType=0; scale=@{x=1;y=1}})
@@ -39,7 +42,7 @@ foreach ($mode in @(2,3,4,5)) {
         }}
     }
     $effects += @{name='XeSSFG\XeSS_FrameGeneration'; scalingType=0; scale=@{x=1;y=1}; parameters=@{
-        multiplier=$multiplier; opticalFlowMethod=1; amdOpticalFlowMode=1
+        multiplier=$multiplier; opticalFlowMethod=$flowMethod; amdOpticalFlowMode=1; nvidiaOpticalFlowQuality=$NvidiaQuality
     }}
     $profiles += @{
         name="Capture $mode"; packaged=$false; pathRule=$fixture; classNameRule="MagpieXeSSCapture$mode";
@@ -108,6 +111,11 @@ for ($i = 0; $i -lt $sessions.Count; ++$i) {
     if ([int]$sessions[$i].Groups[1].Value -ne $multiplier) { throw 'Unexpected capture session multiplier' }
     $end = if ($i + 1 -lt $sessions.Count) { $sessions[$i + 1].Index } else { $log.Length }
     $sessionLog = $log.Substring($sessions[$i].Index, $end - $sessions[$i].Index)
+    if ($sessionLog -notmatch "opticalFlowMethod=$flowMethod,") { throw 'Wrong optical-flow method initialized' }
+    if ($OpticalFlow -eq 'NVIDIA') {
+        $profile = @('4F','4M','4S','2M','2S')[$NvidiaQuality - 1]
+        if ($sessionLog -notmatch "Frame Guidance NVOF initialized: profile=$profile ") { throw 'Requested NVOF quality did not initialize' }
+    }
     $sdkMatches = [regex]::Matches($sessionLog, "XeSSFG SDK output: requested=${multiplier}x frames=(\d+) submissions=(\d+) partialBursts=(\d+)")
     if (!$sdkMatches.Count) { throw "No ${multiplier}x SDK observations" }
     foreach ($match in $sdkMatches) {
@@ -118,6 +126,13 @@ for ($i = 0; $i -lt $sessions.Count; ++$i) {
     if ($Modes[$i] -eq 5 -and $sessionLog -notmatch 'DLSSNR STATUS: Feature=18 .*created=true') { throw 'DLSSNR combination did not initialize' }
     $last = $sdkMatches[$sdkMatches.Count - 1]
     if ([int]$last.Groups[2].Value -lt 120) { throw "Fewer than 120 submissions for ${multiplier}x; startup samples alone do not validate steady output" }
+    $motionFrames = $null
+    if ($OpticalFlow -ne 'None') {
+        $motionSamples = [regex]::Matches($sessionLog, 'XeSSFG SDK output: [^\r\n]*motionFrames=(\d+)')
+        if (!$motionSamples.Count) { throw 'No external-motion submission observations' }
+        $motionFrames = [int]$motionSamples[-1].Groups[1].Value
+        if ($motionFrames -lt [int]$last.Groups[2].Value * 0.9) { throw 'External motion was missing or reset for too many submissions' }
+    }
     $startup = $null
     if ($StartupTrace) {
         $timed = [regex]::Matches($sessionLog, '(?m)^(.{23})[^\r\n]*XeSSFG SDK output: requested=\d+x frames=\d+ submissions=(\d+) partialBursts=\d+ lastFrames=(\d+)')
@@ -134,11 +149,12 @@ for ($i = 0; $i -lt $sessions.Count; ++$i) {
         $startup.firstFrameRTSS = $sessionLog -match 'XeSSFG startup: frame=1 rtss=true'
     }
     $observations += @{mode=$Modes[$i]; multiplier=$multiplier; frames=[int]$last.Groups[1].Value;
-        submissions=[int]$last.Groups[2].Value; partialBursts=[int]$last.Groups[3].Value; startup=$startup}
+        submissions=[int]$last.Groups[2].Value; partialBursts=[int]$last.Groups[3].Value; motionFrames=$motionFrames; startup=$startup}
 }
 if ($log -match 'XeSSFG disabled|XeSSFG.*failed|compatibility.*poison') { throw 'XeSSFG runtime failure in capture log' }
+if ($log -match 'Frame Guidance NVOF failed|NVOF input format mismatch|XeSSFG motion frame mismatch') { throw 'Optical-flow failure in capture log' }
 @{runtime=$runtime; rtssInjected=$rtssInjected; observations=$observations; seconds=$Seconds;
-    startupTrace=[bool]$StartupTrace; fullscreen=[bool]$Fullscreen;
+    startupTrace=[bool]$StartupTrace; fullscreen=[bool]$Fullscreen; opticalFlow=$OpticalFlow; nvidiaQuality=$NvidiaQuality;
     executableSha256=(Get-FileHash -LiteralPath $appPath).Hash} | ConvertTo-Json -Depth 6 |
     Set-Content -LiteralPath (Join-Path $output 'capture-verification.json') -Encoding utf8
-Write-Output "Actual WGC + AMD Quality capture passed for modes $($Modes -join '/'), where 5 means DLSSNR + 4x. SDK counts are not display events."
+Write-Output "Actual WGC + $OpticalFlow capture passed for modes $($Modes -join '/'), where 5 means DLSSNR + 4x. SDK counts are not display events."

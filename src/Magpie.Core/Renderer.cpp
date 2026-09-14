@@ -429,12 +429,9 @@ ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOption
 			xessFrameGenerationMultiplier, adapterDesc.VendorId,
 			adapterDesc.DeviceId, static_cast<uint32_t>(_xessMotionRequest.method),
 			static_cast<uint32_t>(_xessMotionRequest.quality)));
-		if (xessFrameGenerationMultiplier > 2 &&
-			_xessMotionRequest.method == OpticalFlowMethod::Nvidia) {
-			Logger::Get().Error(
-				"XeSSFG 3x/4x currently supports None or AMD optical flow");
-			return ScalingError::XeSSMfgOpticalFlowUnsupported;
-		}
+		// Both providers supply the same current-to-previous pixel-space motion
+		// contract. Provider/quality capabilities are checked by Frame Guidance;
+		// the number of interpolated frames does not change the input contract.
 
 		auto xessPresenter = std::make_unique<XeSSFGPresenter>(
 			*xessVariant,
