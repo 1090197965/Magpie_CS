@@ -1672,4 +1672,8 @@
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_1" xml:space="preserve"><value>DLSSNR · Pass 1</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_2" xml:space="preserve"><value>DLSSNR · Pass 2</value></data>
   <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_Group_DLSSNR____Pass_3" xml:space="preserve"><value>DLSSNR · Pass 3</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Label" xml:space="preserve"><value>Anti-flicker</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_0" xml:space="preserve"><value>None</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_1" xml:space="preserve"><value>A - Static EMA</value></data>
+  <data name="EffectParam_DLSSNR_DLSSNR_AI_Filter_antiFlicker_Option_2" xml:space="preserve"><value>B - Flow EMA</value></data>
 </root>

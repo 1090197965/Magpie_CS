@@ -169,6 +169,15 @@ int uiCorrection;
 int multiPass;
 
 //!PARAMETER
+//!GROUP DLSSNR · Pass 1
+//!LABEL Anti-flicker
+//!DEFAULT 0
+//!OPTION 0 None
+//!OPTION 1 A - Static EMA
+//!OPTION 2 B - Flow EMA
+int antiFlicker;
+
+//!PARAMETER
 //!GROUP DLSSNR · Pass 2
 //!LABEL NR Style\n(0 Default, 1 Natural, 2 Cinematic)
 //!DEFAULT 0

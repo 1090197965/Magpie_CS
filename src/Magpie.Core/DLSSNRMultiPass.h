@@ -1,5 +1,6 @@
 #pragma once
 #include "DLSSNRFilter.h"
+#include "DLSSNRTemporal.h"
 #include "DLSSNRParameters.h"
 #include "DeviceResources.h"
 #include "Logger.h"
@@ -16,11 +17,17 @@ public:
 		if (!Drain()) return false;
 		_filters.clear();
 		_intermediates.clear();
+		_temporal.reset();
+		_rawOutput = {};
 		_core = &core;
 		_option = option;
 		_hdr = hdr;
 		_revisions = {};
 		const int count = Count(option);
+		const int antiFlicker = DLSSNRAntiFlickerMode([&](std::string_view name, float fallback) {
+			const auto it = option.parameters.find(std::string(name));
+			return it == option.parameters.end() ? fallback : it->second;
+		});
 		D3D11_TEXTURE2D_DESC desc{};
 		output->GetDesc(&desc);
 		desc.Usage = D3D11_USAGE_DEFAULT;
@@ -36,17 +43,29 @@ public:
 			}
 			_intermediates.push_back(std::move(texture));
 		}
+		if (antiFlicker && FAILED(resources.GetD3DDevice()->CreateTexture2D(&desc, nullptr, _rawOutput.put()))) {
+			Logger::Get().Error("Create DLSSNR anti-flicker raw output failed");
+			return false;
+		}
 		for (int i = 0; i < count; ++i) {
 			auto filter = std::make_unique<DLSSNRFilter>();
 			if (!filter->Initialize(resources, core,
 				i == 0 ? input : _intermediates[i - 1].get(),
-				i == count - 1 ? output : _intermediates[i].get(),
+				i == count - 1 ? (antiFlicker ? _rawOutput.get() : output) : _intermediates[i].get(),
 				ParseDLSSNRSettings(DLSSNRPassOption(option, i + 1), hdr))) {
 				Logger::Get().Error(fmt::format("DLSSNR Multi Pass initialization failed at pass {}/{}", i + 1, count));
 				return false;
 			}
 			filter->SetHdrBoundary(_hdrBoundary);
 			_filters.push_back(std::move(filter));
+		}
+		if (antiFlicker) {
+			_temporal = std::make_unique<DLSSNRTemporal>();
+			if (!_temporal->Initialize(resources, input, count > 1 ? _intermediates[0].get() : input,
+				_rawOutput.get(), output, antiFlicker, hdr)) {
+				Logger::Get().Error("DLSSNR anti-flicker initialization failed");
+				return false;
+			}
 		}
 		Logger::Get().Info(fmt::format("DLSSNR Multi Pass: {} independent passes initialized", count));
 		return true;
@@ -59,6 +78,9 @@ public:
 	FrameGuidanceRequirements GetFrameGuidanceRequirements() const noexcept override {
 		FrameGuidanceRequirements result;
 		for (const auto& filter : _filters) result.Merge(filter->GetFrameGuidanceRequirements());
+		const auto it = _option.parameters.find("antiFlicker");
+		if (it != _option.parameters.end() && it->second == 2 && !result.HasMotion())
+			result.Add(MotionVectorRequest::Amd(AmdOpticalFlowMode::Quality));
 		return result;
 	}
 	bool Drain() noexcept override {
@@ -75,24 +97,26 @@ public:
 		for (size_t i = 0; i < _filters.size(); ++i) {
 			NativeEffectDrawContext pass = context;
 			pass.input = i == 0 ? context.input : _intermediates[i - 1].get();
-			pass.output = i + 1 == _filters.size() ? context.output : _intermediates[i].get();
+			pass.output = i + 1 == _filters.size() ? (_temporal ? _rawOutput.get() : context.output) : _intermediates[i].get();
 			pass.inputRevision += _revisions[i];
 			if (!_filters[i]->Draw(pass)) return false;
+			if (_temporal && !_filters[i]->IsHealthy()) _temporal->Reset();
 			if (_filters.size() > 1 && !_filters[i]->IsHealthy()) {
 				Logger::Get().Error("DLSSNR Multi Pass evaluation failed; rejecting the complete chain");
 				return false;
 			}
 		}
-		return !_filters.empty();
+		return !_filters.empty() && (!_temporal || _temporal->Draw(context));
 	}
 	EffectParameterApplyMode GetParameterApplyMode(std::string_view name) const noexcept override {
-		if (name == "multiPass" || _filters.empty()) return EffectParameterApplyMode::RestartRequired;
+		if (name == "multiPass" || name == "antiFlicker" || _filters.empty()) return EffectParameterApplyMode::RestartRequired;
 		const size_t index = DLSSNRParameterPass(name) - 1;
 		// Hidden settings can be saved without constructing a disabled pass.
 		if (index >= _filters.size()) return EffectParameterApplyMode::Live;
 		return _filters[index]->GetParameterApplyMode(DLSSNRBaseParameter(name));
 	}
 	EffectParameterRestartReason GetParameterRestartReason(std::string_view name) const noexcept override {
+		if (name == "antiFlicker") return EffectParameterRestartReason::FrameGuidance;
 		if (name == "multiPass" || _filters.empty()) return EffectParameterRestartReason::ResourceRecreation;
 		return _filters.front()->GetParameterRestartReason(DLSSNRBaseParameter(name));
 	}
@@ -127,6 +151,7 @@ public:
 			}
 		}
 		_option = option;
+		if (_temporal && !names.empty()) _temporal->Reset();
 		return true;
 	}
 
@@ -143,6 +168,8 @@ private:
 	std::array<uint64_t, 3> _revisions{};
 	// Textures outlive all filters that refer to them.
 	std::vector<winrt::com_ptr<ID3D11Texture2D>> _intermediates;
+	winrt::com_ptr<ID3D11Texture2D> _rawOutput;
+	std::unique_ptr<DLSSNRTemporal> _temporal;
 	std::vector<std::unique_ptr<DLSSNRFilter>> _filters;
 };
 

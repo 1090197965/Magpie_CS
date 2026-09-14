@@ -12,6 +12,7 @@
 #include <vector>
 #include "DLSSNRParameters.h"
 #include "EffectParameterRules.h"
+#include "MotionVectorRequest.h"
 
 // Execute the production chain with deterministic SDK and texture doubles.
 // This checks routing/lifetime/failure behavior without invoking NGX or a GPU.
@@ -46,12 +47,8 @@ template<class... Args> std::string format(const char* value, Args&&...) { retur
 namespace Magpie {
 struct EffectOption { std::map<std::string, float> parameters; };
 enum class EffectParameterApplyMode { Live, RestartRequired, Unavailable };
-enum class EffectParameterRestartReason { None, ResourceRecreation };
+enum class EffectParameterRestartReason { None, ResourceRecreation, FrameGuidance };
 struct HdrEffectBoundaryContext {};
-struct FrameGuidanceRequirements {
-	bool zero = false;
-	void Merge(const FrameGuidanceRequirements& other) { zero |= other.zero; }
-};
 struct NativeEffectDrawContext {
 	ID3D11Texture2D* input;
 	ID3D11Texture2D* output;
@@ -78,6 +75,17 @@ struct DeviceResources {
 	}
 };
 struct NgxD3D12Core {};
+struct DLSSNRTemporal {
+	inline static int resets = 0, draws = 0;
+	inline static ID3D11Texture2D* lastBase = nullptr;
+	ID3D11Texture2D* raw = nullptr;
+	bool Initialize(DeviceResources&, ID3D11Texture2D*, ID3D11Texture2D* base,
+		ID3D11Texture2D* value, ID3D11Texture2D*, int, bool) {
+		raw = value; lastBase = base; return true;
+	}
+	void Reset() { ++resets; }
+	bool Draw(const NativeEffectDrawContext& context) { ++draws; context.output->value = raw->value; return true; }
+};
 struct Logger {
 	static Logger& Get() { static Logger value; return value; }
 	void Info(std::string_view) {}
@@ -131,6 +139,12 @@ int main() {
 		return it == option.parameters.end() ? fallback : it->second;
 	};
 	assert(DLSSNRPassCount(get) == 1);
+	assert(DLSSNRAntiFlickerMode(get) == 0);
+	for (float invalid : {-1.f, 3.f, 1.5f, std::numeric_limits<float>::quiet_NaN()}) {
+		option.parameters["antiFlicker"] = invalid;
+		assert(DLSSNRAntiFlickerMode(get) == 0);
+	}
+	option.parameters.erase("antiFlicker");
 	assert(DLSSNRPassOption(option, 1).parameters.at("intensity") == 2);
 	for (int pass : {2, 3}) {
 		const auto fresh = DLSSNRPassOption(option, pass);
@@ -203,5 +217,24 @@ int main() {
 	resources.failTextureAt = resources.created;
 	{ DLSSNRMultiPass chain; assert(!chain.Initialize(resources, core, &input, &output, option, false)); }
 	assert(DLSSNRFilter::liveInstances == 0);
+	resources.failTextureAt = -1;
+	for (int mode : {1, 2}) {
+		option.parameters["antiFlicker"] = static_cast<float>(mode);
+		for (int count : {1, 3}) {
+			option.parameters["multiPass"] = static_cast<float>(count);
+			DLSSNRMultiPass chain;
+			assert(chain.Initialize(resources, core, &input, &output, option, false));
+			assert(chain.GetFrameGuidanceRequirements().HasMotion() == (mode == 2));
+			assert(chain.GetParameterApplyMode("antiFlicker") == EffectParameterApplyMode::RestartRequired);
+			assert(chain.GetParameterRestartReason("antiFlicker") == EffectParameterRestartReason::FrameGuidance);
+			assert((DLSSNRTemporal::lastBase == &input) == (count == 1));
+			assert(chain.Draw({&input, &output, 7}));
+			assert(output.value == (count == 1 ? 1 : 113));
+			const int resets = DLSSNRTemporal::resets;
+			std::vector<std::string> edits{"intensity"};
+			assert(chain.ApplyLiveParameters(option, edits));
+			assert(DLSSNRTemporal::resets == resets + 1);
+		}
+	}
 	std::cout << "DLSSNR Multi Pass: defaults, isolation, visibility, serial order, revisions, rollback, resize and failures passed.\n";
 }

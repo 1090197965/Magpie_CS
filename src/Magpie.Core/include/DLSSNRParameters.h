@@ -29,6 +29,13 @@ int DLSSNRPassCount(GetValue&& getValue) noexcept {
 	return std::max(1, static_cast<int>(std::lround(value)));
 }
 
+template<class GetValue>
+int DLSSNRAntiFlickerMode(GetValue&& getValue) noexcept {
+	const float value = getValue("antiFlicker", 0.0f);
+	if (!std::isfinite(value) || value < 0 || value > 2 || value != std::floor(value)) return 0;
+	return static_cast<int>(value);
+}
+
 // Pass 1 keeps the existing keys for old configurations. Missing later-pass
 // keys are erased, allowing the filter parser to use factory defaults.
 template<class Option>
