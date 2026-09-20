@@ -16,33 +16,28 @@ jobs:
     - name: Setup Conan
       run: pip install conan
 
-    - name: Download DLSS SDK and NVAPI (auto from NVIDIA official GitHub releases)
+    - name: Download DLSS SDK and NVAPI headers (from NVIDIA official repos)
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
         $ProgressPreference = "SilentlyContinue"
         New-Item -ItemType Directory -Force -Path dependencies | Out-Null
 
-        function Get-LatestReleaseZip([string]$repo, [string]$outZip) {
-          $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=1"
-          $rel = $rel | Select-Object -First 1
-          $asset = $rel.assets | Where-Object { $_.name -match '\.zip$' } | Select-Object -First 1
-          if (-not $asset) { throw "no zip asset found in $repo latest release ($($rel.tag_name))" }
-          Write-Host "Downloading $($asset.name) ($([math]::Round($asset.size/1MB,1)) MB) from $repo@$($rel.tag_name)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $outZip
+        function Get-RepoZip([string]$repo, [string]$outZip) {
+          $meta = Invoke-RestMethod "https://api.github.com/repos/$repo"
+          $branch = $meta.default_branch
+          Write-Host "Downloading $repo@$branch source archive"
+          Invoke-WebRequest -Uri "https://github.com/$repo/archive/refs/heads/$branch.zip" -OutFile $outZip
           $dir = "$outZip.extracted"
           Expand-Archive $outZip -DestinationPath $dir -Force
-          return $dir
+          return (Get-ChildItem $dir -Directory | Select-Object -First 1).FullName
         }
 
-        $dlssDir = Get-LatestReleaseZip "NVIDIA/DLSS" "dependencies\dlss-sdk.zip"
-        $nvapiDir = Get-LatestReleaseZip "NVIDIA/nvapi" "dependencies\nvapi.zip"
+        $dlssRoot = Get-RepoZip "NVIDIA/DLSS" "dependencies\dlss-sdk.zip"
+        $nvapiRoot = Get-RepoZip "NVIDIA/nvapi" "dependencies\nvapi.zip"
 
-        # Locate key headers as SDK root (tolerates different archive layouts)
-        $dlssRoot = (Get-ChildItem $dlssDir -Recurse -Filter "nvsdk_ngx.h" | Select-Object -First 1).DirectoryName
-        if (-not $dlssRoot) { throw "nvsdk_ngx.h not found in DLSS SDK package" }
-        $nvapiRoot = (Get-ChildItem $nvapiDir -Recurse -Filter "nvapi.h" | Select-Object -First 1).DirectoryName
-        if (-not $nvapiRoot) { throw "nvapi.h not found in NVAPI package" }
+        if (-not (Test-Path "$dlssRoot\include\nvsdk_ngx.h")) { throw "nvsdk_ngx.h not found under $dlssRoot" }
+        if (-not (Test-Path "$nvapiRoot\nvapi.h")) { throw "nvapi.h not found under $nvapiRoot" }
         Write-Host "DLSSSdkDir=$dlssRoot"
         Write-Host "NvapiSdkDir=$nvapiRoot"
 
