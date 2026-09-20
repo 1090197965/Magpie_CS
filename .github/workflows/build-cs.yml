@@ -16,7 +16,7 @@ jobs:
     - name: Setup Conan
       run: pip install conan
 
-    - name: Download DLSS SDK and NVAPI headers (from NVIDIA official repos)
+    - name: Download DLSS SDK, NVAPI and DLSSNR runtime
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
@@ -41,8 +41,22 @@ jobs:
         Write-Host "DLSSSdkDir=$dlssRoot"
         Write-Host "NvapiSdkDir=$nvapiRoot"
 
-        "DLSS_SDK_ROOT=$dlssRoot"   | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-        "NVAPI_SDK_ROOT=$nvapiRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        # DLSSNR runtime DLL from the upstream official release package
+        $rel = Invoke-RestMethod "https://api.github.com/repos/SAOG0721/Magpie/releases?per_page=5"
+        $rel = $rel | Where-Object { @($_.assets.name) -contains "Magpie-Experimental-x64.zip" } | Select-Object -First 1
+        $asset = $rel.assets | Where-Object { $_.name -eq "Magpie-Experimental-x64.zip" }
+        if (-not $asset) { throw "official package not found in upstream releases" }
+        Write-Host "Downloading $($asset.name) ($([math]::Round($asset.size/1MB,1)) MB) from SAOG0721/Magpie@$($rel.tag_name)"
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "dependencies\official.zip"
+        Expand-Archive "dependencies\official.zip" -DestinationPath "dependencies\official" -Force
+        $dll = Get-ChildItem "dependencies\official" -Recurse -Filter "nvngx_dlssnr.dll" | Select-Object -First 1
+        if (-not $dll) { throw "nvngx_dlssnr.dll not found in official package" }
+        $dlssnrRoot = $dll.DirectoryName
+        Write-Host "DLSSNRRuntimeDir=$dlssnrRoot"
+
+        "DLSS_SDK_ROOT=$dlssRoot"    | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "NVAPI_SDK_ROOT=$nvapiRoot"  | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "DLSSNR_RT_ROOT=$dlssnrRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
     - name: Enable native AI effects (DLSS SR / NR / Frame Generation)
       shell: pwsh
@@ -56,10 +70,11 @@ jobs:
           '    <EnableDLSSFrameGeneration>true</EnableDLSSFrameGeneration>'
           '    <DLSSSdkDir>@DLSSROOT@</DLSSSdkDir>'
           '    <NvapiSdkDir>@NVAPIROOT@</NvapiSdkDir>'
+          '    <DLSSNRRuntimeDir>@DLSSNRRT@</DLSSNRRuntimeDir>'
           '  </PropertyGroup>'
           '</Project>'
         )
-        $content = ($lines -join [char]10).Replace('@DLSSROOT@', $env:DLSS_SDK_ROOT).Replace('@NVAPIROOT@', $env:NVAPI_SDK_ROOT)
+        $content = ($lines -join [char]10).Replace('@DLSSROOT@', $env:DLSS_SDK_ROOT).Replace('@NVAPIROOT@', $env:NVAPI_SDK_ROOT).Replace('@DLSSNRRT@', $env:DLSSNR_RT_ROOT)
         # Generate the gitignored local override file that turns on DLSS build switches
         Out-File -InputObject $content -Encoding utf8 "$env:GITHUB_WORKSPACE\src\BuildOptions.props.user"
         Get-Content "$env:GITHUB_WORKSPACE\src\BuildOptions.props.user"
