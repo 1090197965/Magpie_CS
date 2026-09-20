@@ -2,6 +2,8 @@ name: build-cs
 
 on:
   workflow_dispatch:
+  push:
+    branches: [experimental]
 
 jobs:
   build:
