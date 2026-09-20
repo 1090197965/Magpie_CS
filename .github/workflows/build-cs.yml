@@ -1,0 +1,26 @@
+name: build-cs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: Setup Conan
+      run: pip install conan
+
+    - name: Build
+      run: python scripts/publish.py --compiler=MSVC --platform=x64
+
+    - name: Store build
+      uses: actions/upload-artifact@v7
+      with:
+        name: Magpie_CS-x64
+        path: ./publish/x64
